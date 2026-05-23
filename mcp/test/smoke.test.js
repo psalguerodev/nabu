@@ -21,8 +21,8 @@ test("MCP advertises list_services tool", async () => {
   const { client, transport } = await connect();
   try {
     const { tools } = await client.listTools();
-    assert.equal(tools.length, 1);
-    assert.equal(tools[0].name, "list_services");
+    const names = tools.map((t) => t.name);
+    assert.ok(names.includes("list_services"), `missing list_services in ${names.join(",")}`);
   } finally {
     await transport.close();
   }

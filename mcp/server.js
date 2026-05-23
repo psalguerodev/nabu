@@ -5,54 +5,26 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 
-export const HANDLERS_DIR = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "playwright",
-  "lib",
-  "services",
-);
+import { tools, registry } from "./tools/index.js";
+import { SERVER_NAME, SERVER_VERSION } from "./tools/get-version.js";
 
-export function listServices(dir = HANDLERS_DIR) {
-  return readdirSync(dir)
-    .filter((f) => f.endsWith(".js"))
-    .map((f) => f.replace(/\.js$/, ""))
-    .sort();
-}
+export { listServices, HANDLERS_DIR } from "./tools/list-services.js";
 
 export function createServer() {
   const server = new Server(
-    { name: "nabu", version: "0.0.1" },
+    { name: SERVER_NAME, version: SERVER_VERSION },
     { capabilities: { tools: {} } },
   );
 
   server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools: [
-      {
-        name: "list_services",
-        description: "List AWS services Nabu can currently estimate.",
-        inputSchema: { type: "object", properties: {} },
-      },
-    ],
+    tools: tools.map((t) => t.definition),
   }));
 
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
-    if (req.params.name !== "list_services") {
-      throw new Error(`Unknown tool: ${req.params.name}`);
-    }
-    const services = listServices();
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({ count: services.length, services }, null, 2),
-        },
-      ],
-    };
+    const handler = registry.get(req.params.name);
+    if (!handler) throw new Error(`Unknown tool: ${req.params.name}`);
+    return handler(req.params.arguments ?? {});
   });
 
   return server;
