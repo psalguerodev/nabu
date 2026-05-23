@@ -11,7 +11,7 @@ async function connect() {
   const transport = new StdioClientTransport({
     command: process.execPath,
     args: [SERVER],
-    env: { ...process.env, NABU_STUB_DURATION_MS: "80" },
+    env: { ...process.env, NABU_EXECUTOR: "stub", NABU_STUB_DURATION_MS: "80" },
   });
   const client = new Client({ name: "jobs-test", version: "0.0.0" }, {});
   await client.connect(transport);

@@ -1,0 +1,18 @@
+{
+  "name": "@arkho/nabu-runner",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "bin": {
+    "nabu-runner": "./run.js"
+  },
+  "scripts": {
+    "start": "node run.js"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0"
+  }
+}

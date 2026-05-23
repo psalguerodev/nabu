@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getCatalogEntry, listCatalogServices } from "../catalog/index.js";
 import { createJob } from "../jobs/store.js";
-import { runStub } from "../jobs/executor.js";
+import { run as runJob } from "../jobs/executor.js";
 
 export const definition = {
   name: "enqueue_estimate_job",
@@ -44,7 +44,7 @@ export async function handler(args) {
 
   const id = randomUUID();
   createJob({ id, service, params: parsed.data, options });
-  setImmediate(() => runStub(id));
+  setImmediate(() => runJob(id));
 
   return {
     content: [

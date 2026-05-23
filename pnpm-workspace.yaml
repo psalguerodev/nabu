@@ -2,6 +2,7 @@ packages:
   - "mcp"
   - "app"
   - "bridge"
+  - "runner"
 allowBuilds:
   esbuild: true
 minimumReleaseAge: 0
