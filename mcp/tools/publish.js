@@ -107,12 +107,19 @@ async function main() {
     // argument that the orchestrator hands them — so a plain copy is fine.
     copyFileSync(handlerSrc, handlerDst);
 
+    const handlerHash = sha256(handlerDst);
+    const schemaHash = sha256(schemaDst);
+    // Derive a per-handler version from the content hash so a re-publish
+    // with no changes keeps the same version, and a real handler edit
+    // produces a fresh one. The embedded catalog still ships a placeholder
+    // ("0.0.0"); the released entry overrides it.
+    const versionSuffix = handlerHash.slice(0, 8);
     releaseServices[name] = {
-      handler_version: manifest.services[name].handler_version,
+      handler_version: `0.1.0-${versionSuffix}`,
       schema_ref: `schemas/${name}.js`,
       handler_ref: `handlers/${name}.js`,
-      schema_sha256: sha256(schemaDst),
-      handler_sha256: sha256(handlerDst),
+      schema_sha256: schemaHash,
+      handler_sha256: handlerHash,
       status: manifest.services[name].status,
       tags: manifest.services[name].tags ?? [],
     };

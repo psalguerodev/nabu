@@ -26,7 +26,8 @@ import {
   listCatalogServices,
   reload as reloadCatalog,
 } from "./catalog/index.js";
-import { getJobDetail, listJobs, deleteJob, deleteJobs } from "./jobs/store.js";
+import { createJob, getJobDetail, listJobs, deleteJob, deleteJobs } from "./jobs/store.js";
+import { run as runJob } from "./jobs/executor.js";
 
 export function createServer() {
   const server = new Server(
@@ -269,6 +270,27 @@ export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
       }
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
       res.end(JSON.stringify(detail));
+      return;
+    }
+    const retryMatch = req.url?.match(/^\/jobs\/([0-9a-fA-F-]+)\/retry$/);
+    if (retryMatch && req.method === "POST") {
+      const original = getJobDetail(retryMatch[1]);
+      if (!original) {
+        res.writeHead(404, { ...cors, "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "not_found" }));
+        return;
+      }
+      const newId = randomUUID();
+      createJob({
+        id: newId,
+        service: original.service,
+        name: original.name ? `${original.name} (retry)` : null,
+        params: original.params,
+        options: original.options,
+      });
+      setImmediate(() => runJob(newId));
+      res.writeHead(200, { ...cors, "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, job_id: newId }));
       return;
     }
     if (jobMatch && req.method === "DELETE") {

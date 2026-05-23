@@ -567,7 +567,14 @@ function JobsPanel({ mcpUp }: { mcpUp: boolean }) {
             </li>
           ))}
         </ul>
-        <JobDetailView detail={detail} placeholder={!selectedId} />
+        <JobDetailView
+          detail={detail}
+          placeholder={!selectedId}
+          onRetry={(newId) => {
+            setSelectedId(newId);
+            refetch();
+          }}
+        />
       </div>
 
       {confirm && (
@@ -632,11 +639,28 @@ function StatusBadge({ status }: { status: string }) {
 function JobDetailView({
   detail,
   placeholder,
+  onRetry,
 }: {
   detail: JobDetail | null;
   placeholder: boolean;
+  onRetry?: (jobId: string) => void;
 }) {
   const [showInput, setShowInput] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+
+  const retry = async () => {
+    if (!detail) return;
+    setRetrying(true);
+    try {
+      const res = await fetch(`${JOBS_URL}/${detail.id}/retry`, {
+        method: "POST",
+      });
+      const body = await res.json();
+      if (res.ok && body.ok && onRetry) onRetry(body.job_id);
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   if (placeholder) {
     return (
@@ -659,7 +683,19 @@ function JobDetailView({
           <div className="eyebrow">{serviceLabel(detail.service)}</div>
           <h2>{detail.name ?? detail.id.slice(0, 8)}</h2>
         </div>
-        <StatusBadge status={detail.status} />
+        <div className="jobs-detail__header-actions">
+          <StatusBadge status={detail.status} />
+          {detail.status === "failed" && (
+            <button
+              className="btn btn--primary"
+              onClick={retry}
+              disabled={retrying}
+              title="Re-enqueue this job with the same payload"
+            >
+              {retrying ? "Retrying…" : "Retry"}
+            </button>
+          )}
+        </div>
       </header>
 
       <dl className="jobs-detail__meta">

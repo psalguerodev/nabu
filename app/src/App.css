@@ -982,6 +982,13 @@ body,
   word-break: break-word;
 }
 
+.jobs-detail__header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .jobs-detail__meta {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
