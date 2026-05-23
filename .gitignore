@@ -3,6 +3,7 @@ node_modules/
 target/
 dist/
 mcp/dist/
+artifacts/
 .DS_Store
 *.log
 .env
