@@ -59,11 +59,13 @@ export function runReal(jobId) {
     stdio: ["pipe", "pipe", "pipe"],
   });
 
+  const services = job.params?.services
+    ? job.params.services
+    : [{ service: job.service, params: job.params }];
   child.stdin.write(
     JSON.stringify({
       jobId,
-      service: job.service,
-      params: job.params,
+      services,
       options: job.options ?? {},
     }),
   );

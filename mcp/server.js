@@ -12,7 +12,7 @@ import { randomUUID } from "node:crypto";
 import { tools, registry } from "./tools/index.js";
 import { SERVER_NAME, SERVER_VERSION } from "./tools/get-version.js";
 import { catalog, catalogVersion, listCatalogServices } from "./catalog/index.js";
-import { getJobDetail, listJobs } from "./jobs/store.js";
+import { getJobDetail, listJobs, deleteJob, deleteJobs } from "./jobs/store.js";
 
 export function createServer() {
   const server = new Server(
@@ -65,7 +65,7 @@ export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
 
   const cors = {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
     "Access-Control-Allow-Headers":
       "Content-Type, Accept, mcp-session-id, mcp-protocol-version",
     "Access-Control-Expose-Headers": "mcp-session-id",
@@ -113,6 +113,48 @@ export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
       }
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
       res.end(JSON.stringify(detail));
+      return;
+    }
+    if (jobMatch && req.method === "DELETE") {
+      const removed = deleteJob(jobMatch[1]);
+      res.writeHead(removed ? 200 : 404, {
+        ...cors,
+        "Content-Type": "application/json",
+      });
+      res.end(JSON.stringify({ removed }));
+      return;
+    }
+    if (req.url === "/jobs" && req.method === "DELETE") {
+      const chunks = [];
+      for await (const c of req) chunks.push(c);
+      const raw = Buffer.concat(chunks).toString();
+      let body = {};
+      if (raw) {
+        try {
+          body = JSON.parse(raw);
+        } catch {
+          res.writeHead(400, { ...cors, "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "invalid_json" }));
+          return;
+        }
+      }
+      const ids = Array.isArray(body.ids) ? body.ids : null;
+      const all = body.all === true;
+      let removed;
+      if (all) {
+        const everything = listJobs(10000).map((j) => j.id);
+        removed = deleteJobs(everything);
+      } else if (ids && ids.length) {
+        removed = deleteJobs(ids);
+      } else {
+        res.writeHead(400, { ...cors, "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({ error: "must provide ids[] or all:true" }),
+        );
+        return;
+      }
+      res.writeHead(200, { ...cors, "Content-Type": "application/json" });
+      res.end(JSON.stringify({ removed }));
       return;
     }
     if (req.url !== "/mcp") {

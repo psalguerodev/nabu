@@ -3,7 +3,7 @@
  * Nabu Playwright runner.
  *
  * Reads a JSON job spec from stdin:
- *   { jobId, service, params, options: { headless, name } }
+ *   { jobId, services: [{ service, params }, ...], options: { headless, name } }
  *
  * Emits NDJSON to stdout, one event per line:
  *   { type: "log",    level: "info"|"warn"|"error", message }
@@ -84,20 +84,32 @@ async function main() {
     process.exit(2);
   }
   const spec = JSON.parse(raw);
-  const { service, params, options = {} } = spec;
+  const services = spec.services ?? [];
+  const options = spec.options ?? {};
 
-  emit({ type: "log", level: "info", message: `runner starting for service=${service}` });
+  if (!services.length) {
+    emit({ type: "error", message: "services[] is empty" });
+    process.exit(2);
+  }
 
-  let legacy;
+  emit({
+    type: "log",
+    level: "info",
+    message: `runner starting for ${services.length} service(s): ${services.map((s) => s.service).join(", ")}`,
+  });
+
+  const legacyServices = [];
   try {
-    const adapted = toLegacyService(service, params);
-    legacy = adapted.legacy;
-    for (const field of adapted.ignored) {
-      emit({
-        type: "log",
-        level: "warn",
-        message: `param '${field}' is not wired through to the calculator handler yet`,
-      });
+    for (const { service, params } of services) {
+      const adapted = toLegacyService(service, params);
+      legacyServices.push(adapted.legacy);
+      for (const field of adapted.ignored) {
+        emit({
+          type: "log",
+          level: "warn",
+          message: `${service}: param '${field}' is not wired through to the calculator handler yet`,
+        });
+      }
     }
   } catch (err) {
     emit({ type: "error", message: err.message });
@@ -106,22 +118,20 @@ async function main() {
 
   try {
     emit({ type: "log", level: "info", message: "launching browser" });
-    const result = await createEstimate([legacy], {
+    const result = await createEstimate(legacyServices, {
       headless: options.headless !== false,
       name: options.name ?? null,
     });
     emit({
       type: "result",
       calculator_url: result.url,
-      line_items: [
-        {
-          service,
-          monthly_usd: result.monthly ?? 0,
-          upfront_usd: result.upfront ?? 0,
-          annual_usd: result.annual ?? 0,
-        },
-      ],
+      line_items: services.map(({ service }) => ({
+        service,
+        configured: true,
+      })),
       total_monthly: result.monthly ?? 0,
+      upfront: result.upfront ?? 0,
+      annual: result.annual ?? 0,
       xlsx_path: null,
     });
     emit({ type: "log", level: "info", message: `done in ${result.elapsed}s` });

@@ -97,13 +97,15 @@ export default function App() {
       </aside>
 
       <main className="content">
-        <header className="content-header">
-          <div>
-            <div className="content-eyebrow">{EYEBROW[tab]}</div>
-            <h1>{tab}</h1>
-          </div>
-        </header>
-        <TabContent tab={tab} status={status} />
+        <div className="page">
+          <header className="page-header">
+            <div>
+              <div className="eyebrow">{EYEBROW[tab]}</div>
+              <h1>{tab}</h1>
+            </div>
+          </header>
+          <TabContent tab={tab} status={status} />
+        </div>
       </main>
 
       <footer className="statusbar">
@@ -131,6 +133,7 @@ function TabContent({ tab, status }: { tab: Tab; status: McpStatus }) {
 type JobSummary = {
   id: string;
   service: string;
+  name: string | null;
   status: string;
   created_at: number;
   started_at: number | null;
@@ -157,6 +160,23 @@ function JobsPanel({ mcpUp }: { mcpUp: boolean }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<JobDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [confirm, setConfirm] = useState<
+    null | { ids: string[]; label: string }
+  >(null);
+  const [busy, setBusy] = useState(false);
+
+  const refetch = async () => {
+    try {
+      const res = await fetch(JOBS_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = await res.json();
+      setJobs(body.jobs);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
 
   useEffect(() => {
     if (!mcpUp) return;
@@ -181,6 +201,64 @@ function JobsPanel({ mcpUp }: { mcpUp: boolean }) {
       clearInterval(id);
     };
   }, [mcpUp]);
+
+  const toggle = (id: string) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const allChecked =
+    jobs != null && jobs.length > 0 && checked.size === jobs.length;
+  const someChecked = checked.size > 0;
+
+  const toggleAll = () => {
+    if (!jobs) return;
+    if (allChecked) setChecked(new Set());
+    else setChecked(new Set(jobs.map((j) => j.id)));
+  };
+
+  const askDeleteSelected = () => {
+    const ids = [...checked];
+    if (!ids.length) return;
+    setConfirm({
+      ids,
+      label: `${ids.length} job${ids.length === 1 ? "" : "s"}`,
+    });
+  };
+
+  const askDeleteOne = (id: string, name: string) => {
+    setConfirm({ ids: [id], label: name });
+  };
+
+  const performDelete = async () => {
+    if (!confirm) return;
+    setBusy(true);
+    try {
+      if (confirm.ids.length === 1) {
+        await fetch(`${JOBS_URL}/${confirm.ids[0]}`, { method: "DELETE" });
+      } else {
+        await fetch(JOBS_URL, {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ids: confirm.ids }),
+        });
+      }
+      if (confirm.ids.includes(selectedId ?? "")) setSelectedId(null);
+      setChecked((prev) => {
+        const next = new Set(prev);
+        for (const id of confirm.ids) next.delete(id);
+        return next;
+      });
+      setConfirm(null);
+      await refetch();
+    } finally {
+      setBusy(false);
+    }
+  };
 
   useEffect(() => {
     if (!selectedId) {
@@ -238,25 +316,119 @@ function JobsPanel({ mcpUp }: { mcpUp: boolean }) {
     );
   }
   return (
-    <div className="jobs-layout">
-      <ul className="jobs-list">
-        {jobs.map((j) => (
-          <li
-            key={j.id}
-            className={`jobs-item ${j.id === selectedId ? "jobs-item--active" : ""}`}
-            onClick={() => setSelectedId(j.id)}
+    <>
+      <div className="jobs-toolbar">
+        <label className="jobs-toolbar__select-all">
+          <input type="checkbox" checked={allChecked} onChange={toggleAll} />
+          {someChecked
+            ? `${checked.size} selected`
+            : `Select all (${jobs.length})`}
+        </label>
+        <button
+          className="btn btn--danger"
+          disabled={!someChecked || busy}
+          onClick={askDeleteSelected}
+        >
+          Delete selected
+        </button>
+      </div>
+
+      <div className="jobs-layout">
+        <ul className="jobs-list">
+          {jobs.map((j) => (
+            <li
+              key={j.id}
+              className={`jobs-item ${j.id === selectedId ? "jobs-item--active" : ""}`}
+            >
+              <input
+                type="checkbox"
+                className="jobs-item__check"
+                checked={checked.has(j.id)}
+                onChange={() => toggle(j.id)}
+                onClick={(e) => e.stopPropagation()}
+              />
+              <div
+                className="jobs-item__body"
+                onClick={() => setSelectedId(j.id)}
+              >
+                <div className="jobs-item__top">
+                  <span className="jobs-item__service">
+                    {j.name ?? j.service}
+                  </span>
+                  <StatusBadge status={j.status} />
+                </div>
+                <div className="jobs-item__id">
+                  {j.name ? `${j.service} · ` : ""}
+                  {j.id.slice(0, 8)} · {formatRelative(j.created_at)}
+                </div>
+              </div>
+              <button
+                className="jobs-item__delete"
+                title="Delete this job"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  askDeleteOne(j.id, j.name ?? j.service);
+                }}
+              >
+                ×
+              </button>
+            </li>
+          ))}
+        </ul>
+        <JobDetailView detail={detail} placeholder={!selectedId} />
+      </div>
+
+      {confirm && (
+        <ConfirmDialog
+          message={`Delete ${confirm.label}? This cannot be undone.`}
+          confirmLabel="Delete"
+          danger
+          busy={busy}
+          onConfirm={performDelete}
+          onCancel={() => setConfirm(null)}
+        />
+      )}
+    </>
+  );
+}
+
+function ConfirmDialog({
+  message,
+  confirmLabel,
+  danger,
+  busy,
+  onConfirm,
+  onCancel,
+}: {
+  message: string;
+  confirmLabel: string;
+  danger?: boolean;
+  busy?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="modal-backdrop" onClick={onCancel}>
+      <div
+        className="modal"
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        <p className="modal__message">{message}</p>
+        <div className="modal__actions">
+          <button className="btn" onClick={onCancel} disabled={busy}>
+            Cancel
+          </button>
+          <button
+            className={`btn ${danger ? "btn--danger" : "btn--primary"}`}
+            onClick={onConfirm}
+            disabled={busy}
           >
-            <div className="jobs-item__top">
-              <span className="jobs-item__service">{j.service}</span>
-              <StatusBadge status={j.status} />
-            </div>
-            <div className="jobs-item__id">
-              {j.id.slice(0, 8)} · {formatRelative(j.created_at)}
-            </div>
-          </li>
-        ))}
-      </ul>
-      <JobDetailView detail={detail} placeholder={!selectedId} />
+            {busy ? "Working…" : confirmLabel}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -290,8 +462,8 @@ function JobDetailView({
     <section className="card jobs-detail">
       <header className="jobs-detail__header">
         <div>
-          <div className="content-eyebrow">{detail.service}</div>
-          <h2>{detail.id.slice(0, 8)}</h2>
+          <div className="eyebrow">{detail.service}</div>
+          <h2>{detail.name ?? detail.id.slice(0, 8)}</h2>
         </div>
         <StatusBadge status={detail.status} />
       </header>
@@ -319,7 +491,7 @@ function JobDetailView({
 
       {detail.result?.calculator_url && (
         <div className="jobs-result">
-          <div className="content-eyebrow">Result</div>
+          <div className="eyebrow">Result</div>
           <p>
             <a
               href={detail.result.calculator_url}
@@ -337,7 +509,7 @@ function JobDetailView({
         </div>
       )}
 
-      <div className="content-eyebrow jobs-logs-label">Logs</div>
+      <div className="eyebrow">Logs</div>
       <ol className="jobs-logs">
         {detail.logs.map((l, i) => (
           <li key={i}>

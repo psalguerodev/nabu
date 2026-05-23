@@ -6,6 +6,7 @@ const SCHEMA = `
 CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY,
   service TEXT NOT NULL,
+  name TEXT,
   params_json TEXT NOT NULL,
   options_json TEXT,
   status TEXT NOT NULL,
@@ -35,4 +36,9 @@ CREATE TABLE IF NOT EXISTS job_results (
 
 export const db = new DatabaseSync(DB_PATH);
 db.exec(SCHEMA);
+try {
+  db.exec("ALTER TABLE jobs ADD COLUMN name TEXT");
+} catch {
+  // column already exists in the upgraded schema; ignore
+}
 export const dbPath = DB_PATH;

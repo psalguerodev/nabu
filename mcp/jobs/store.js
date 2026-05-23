@@ -3,8 +3,8 @@ import { db } from "./db.js";
 const now = () => Date.now();
 
 const insertJobStmt = db.prepare(
-  `INSERT INTO jobs (id, service, params_json, options_json, status, created_at)
-   VALUES (?, ?, ?, ?, 'queued', ?)`,
+  `INSERT INTO jobs (id, service, name, params_json, options_json, status, created_at)
+   VALUES (?, ?, ?, ?, ?, 'queued', ?)`,
 );
 const setStatusStmt = db.prepare(
   `UPDATE jobs SET status=?, started_at=COALESCE(started_at, ?), finished_at=?, error=? WHERE id=?`,
@@ -29,11 +29,15 @@ const getLogsStmt = db.prepare(
 const listJobsStmt = db.prepare(
   `SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?`,
 );
+const deleteJobStmt = db.prepare(`DELETE FROM jobs WHERE id = ?`);
+const deleteJobLogsStmt = db.prepare(`DELETE FROM job_logs WHERE job_id = ?`);
+const deleteJobResultStmt = db.prepare(`DELETE FROM job_results WHERE job_id = ?`);
 
-export function createJob({ id, service, params, options }) {
+export function createJob({ id, service, name, params, options }) {
   insertJobStmt.run(
     id,
     service,
+    name ?? null,
     JSON.stringify(params),
     options ? JSON.stringify(options) : null,
     now(),
@@ -93,10 +97,24 @@ export function listJobs(limit = 50) {
   return listJobsStmt.all(limit).map(hydrate);
 }
 
+export function deleteJob(id) {
+  deleteJobLogsStmt.run(id);
+  deleteJobResultStmt.run(id);
+  return deleteJobStmt.run(id).changes;
+}
+
+export function deleteJobs(ids) {
+  if (!ids.length) return 0;
+  let n = 0;
+  for (const id of ids) n += deleteJob(id);
+  return n;
+}
+
 function hydrate(row) {
   return {
     id: row.id,
     service: row.service,
+    name: row.name ?? null,
     params: JSON.parse(row.params_json),
     options: row.options_json ? JSON.parse(row.options_json) : null,
     status: row.status,

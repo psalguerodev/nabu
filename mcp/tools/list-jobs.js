@@ -17,6 +17,7 @@ export async function handler(args) {
   const jobs = listJobs(limit).map((j) => ({
     job_id: j.id,
     service: j.service,
+    name: j.name,
     status: j.status,
     created_at: j.created_at,
     finished_at: j.finished_at,

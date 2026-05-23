@@ -95,6 +95,43 @@ test("list_jobs returns recent jobs newest-first", async () => {
   }
 });
 
+test("enqueue_estimate_job accepts a services[] array and validates each item", async () => {
+  const { client, transport } = await connect();
+  try {
+    const enq = await callJson(client, "enqueue_estimate_job", {
+      services: [
+        {
+          service: "ec2",
+          params: {
+            instance_type: "t3.medium",
+            count: 1,
+            hours_per_month: 730,
+            region: "us-east-1",
+          },
+        },
+        {
+          service: "s3",
+          params: { storage_gb: 100, region: "us-east-1" },
+        },
+      ],
+    });
+    assert.deepEqual(enq.services, ["ec2", "s3"]);
+    assert.equal(enq.status, "queued");
+
+    await assert.rejects(
+      callJson(client, "enqueue_estimate_job", {
+        services: [
+          { service: "ec2", params: { instance_type: "", count: 0, hours_per_month: 0, region: "" } },
+          { service: "nope", params: {} },
+        ],
+      }),
+      /services\[0\]|services\[1\]/,
+    );
+  } finally {
+    await transport.close();
+  }
+});
+
 test("get_job_result errors while job is still running", async () => {
   const { client, transport } = await connect();
   try {
