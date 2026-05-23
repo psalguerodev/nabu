@@ -1,0 +1,496 @@
+{
+  "name": "ASICOM - Log Perimetrales Funding",
+  "description": "Estimación de funding ASICOM Log Perimetrales productivo - 3 ambientes (DEV/QA/PROD) escalados desde el PoV de 1 fuente Wazuh hacia 6 fuentes perimetrales 24/7",
+  "services": [
+    {
+      "service": "lambda",
+      "group": "DEV",
+      "description": "[DEV] Lambdas de procesamiento (process-start, process-log, glue trigger)",
+      "requests": 100000,
+      "durationMs": 500,
+      "memoryMB": 512
+    },
+    {
+      "service": "lambda",
+      "group": "DEV",
+      "description": "[DEV] Lambdas de API (get-process, get-history, get-dashboard, presigned-url, etc.)",
+      "requests": 200000,
+      "durationMs": 200,
+      "memoryMB": 256
+    },
+    {
+      "service": "step-functions",
+      "group": "DEV",
+      "description": "[DEV] ProcessLogsStateMachine - bajo volumen para desarrollo",
+      "workflowRequests": 10000,
+      "transitionsPerWorkflow": 5
+    },
+    {
+      "service": "api-gateway",
+      "group": "DEV",
+      "description": "[DEV] HTTP API - requests del frontend de desarrollo",
+      "httpRequests": 1
+    },
+    {
+      "service": "eventbridge",
+      "group": "DEV",
+      "description": "[DEV] EventBridge S3 Notifications + CRON",
+      "customEvents": 1
+    },
+    {
+      "service": "dynamodb",
+      "group": "DEV",
+      "description": "[DEV] Tablas userTable, processTable, logsTable, configTable, executionTable, notificationTable",
+      "capacityMode": "on-demand",
+      "storageGB": 10
+    },
+    {
+      "service": "s3",
+      "group": "DEV",
+      "description": "[DEV] Logs raw + clean + reports - dataset reducido",
+      "storageGB": 50
+    },
+    {
+      "service": "cognito",
+      "group": "DEV",
+      "description": "[DEV] User Pool - usuarios del equipo de desarrollo",
+      "tier": "lite",
+      "mau": 10
+    },
+    {
+      "service": "bedrock",
+      "group": "DEV",
+      "description": "[DEV] Claude Sonnet 4.6 - throughput mínimo para pruebas puntuales",
+      "provider": "Anthropic",
+      "model": "Claude Sonnet 4.6",
+      "requestsPerMinute": 1,
+      "hoursPerDay": 2,
+      "inputTokensPerRequest": 2000,
+      "outputTokensPerRequest": 500
+    },
+    {
+      "service": "bedrock-agentcore",
+      "group": "DEV",
+      "description": "[DEV] AgentCore Runtime + Gateway + Observability - sizing mínimo",
+      "enableGateway": true,
+      "enableObservability": true,
+      "sessionsPerMonth": 1000,
+      "avgSessionDurationSec": 30,
+      "ioWaitPercent": 50,
+      "avgVcpu": 1,
+      "avgSessionMemoryGB": 1,
+      "gatewaySessions": 1000,
+      "gatewayTools": 5,
+      "gatewaySearchRequests": 3,
+      "gatewayToolInvocations": 10,
+      "observabilityLogsGB": 2,
+      "observabilitySpansGB": 1
+    },
+    {
+      "service": "athena",
+      "group": "DEV",
+      "description": "[DEV] Queries esporádicas para validación",
+      "queriesPerMonth": 30,
+      "dataScannedPerQueryGB": 1
+    },
+    {
+      "service": "cloudwatch",
+      "group": "DEV",
+      "description": "[DEV] Logs y métricas mínimas",
+      "metrics": 20
+    },
+    {
+      "service": "xray",
+      "group": "DEV",
+      "description": "[DEV] Tracing reducido",
+      "requestsPerMonth": 100000,
+      "samplingRate": 5
+    },
+    {
+      "service": "systems-manager",
+      "group": "DEV",
+      "description": "[DEV] Parameter Store - configuración",
+      "standardParams": 30,
+      "apiInteractionsPerParam": 100
+    },
+    {
+      "service": "secrets-manager",
+      "group": "DEV",
+      "description": "[DEV] Secretos para credenciales Redshift, API keys VirusTotal/AbuseIPDB",
+      "numberOfSecrets": 5,
+      "avgSecretDurationDays": 30,
+      "apiCallsPerMonth": 10000
+    },
+    {
+      "service": "ecr",
+      "group": "DEV",
+      "description": "[DEV] Imágenes del agente Bedrock AgentCore - dataset reducido",
+      "storageGB": 5
+    },
+    {
+      "service": "appsync",
+      "group": "DEV",
+      "description": "[DEV] GraphQL API - notificaciones de progreso al frontend dev",
+      "apiRequestsPerMonth": 100000,
+      "enableRealTime": false,
+      "enableDataTransfer": false
+    },
+    {
+      "service": "glue",
+      "group": "DEV",
+      "description": "[DEV] ETL PySpark - normalización de logs (2 DPU × 15 min/día = mínimo AWS)",
+      "sparkDpus": 2,
+      "sparkMinutesPerMonth": 450
+    },
+
+    {
+      "service": "lambda",
+      "group": "QA",
+      "description": "[QA] Lambdas de procesamiento - volumen intermedio",
+      "requests": 1000000,
+      "durationMs": 500,
+      "memoryMB": 512
+    },
+    {
+      "service": "lambda",
+      "group": "QA",
+      "description": "[QA] Lambdas de API - tráfico de testing",
+      "requests": 1000000,
+      "durationMs": 200,
+      "memoryMB": 256
+    },
+    {
+      "service": "step-functions",
+      "group": "QA",
+      "description": "[QA] ProcessLogsStateMachine - testing pre-producción",
+      "workflowRequests": 100000,
+      "transitionsPerWorkflow": 5
+    },
+    {
+      "service": "api-gateway",
+      "group": "QA",
+      "description": "[QA] HTTP API",
+      "httpRequests": 1
+    },
+    {
+      "service": "eventbridge",
+      "group": "QA",
+      "description": "[QA] EventBridge",
+      "customEvents": 1
+    },
+    {
+      "service": "dynamodb",
+      "group": "QA",
+      "description": "[QA] Tablas con dataset de pruebas",
+      "capacityMode": "on-demand",
+      "storageGB": 50
+    },
+    {
+      "service": "s3",
+      "group": "QA",
+      "description": "[QA] Logs raw + clean + reports - dataset de testing",
+      "storageGB": 300
+    },
+    {
+      "service": "cognito",
+      "group": "QA",
+      "description": "[QA] Usuarios QA + testers",
+      "tier": "lite",
+      "mau": 20
+    },
+    {
+      "service": "waf",
+      "group": "QA",
+      "description": "[QA] Firewall del API Gateway",
+      "webACLs": 1,
+      "rulesPerACL": 5,
+      "managedRuleGroups": 2,
+      "requestsPerMonth": 1
+    },
+    {
+      "service": "vpn",
+      "group": "QA",
+      "description": "[QA] VPN Site-to-Site con on-premise para testing E2E",
+      "siteToSiteConnections": 1,
+      "hoursPerDay": 24
+    },
+    {
+      "service": "bedrock",
+      "group": "QA",
+      "description": "[QA] Claude Sonnet 4.6 - throughput de testing",
+      "provider": "Anthropic",
+      "model": "Claude Sonnet 4.6",
+      "requestsPerMinute": 1,
+      "hoursPerDay": 4,
+      "inputTokensPerRequest": 2000,
+      "outputTokensPerRequest": 600
+    },
+    {
+      "service": "bedrock-agentcore",
+      "group": "QA",
+      "description": "[QA] AgentCore Runtime + Gateway + Observability",
+      "enableGateway": true,
+      "enableObservability": true,
+      "sessionsPerMonth": 5000,
+      "avgSessionDurationSec": 30,
+      "ioWaitPercent": 50,
+      "avgVcpu": 1,
+      "avgSessionMemoryGB": 1,
+      "gatewaySessions": 5000,
+      "gatewayTools": 8,
+      "gatewaySearchRequests": 4,
+      "gatewayToolInvocations": 15,
+      "observabilityLogsGB": 5,
+      "observabilitySpansGB": 3
+    },
+    {
+      "service": "athena",
+      "group": "QA",
+      "description": "[QA] Queries de validación de pipeline",
+      "queriesPerMonth": 150,
+      "dataScannedPerQueryGB": 3
+    },
+    {
+      "service": "cloudwatch",
+      "group": "QA",
+      "description": "[QA] Logs y métricas standard",
+      "metrics": 50
+    },
+    {
+      "service": "xray",
+      "group": "QA",
+      "description": "[QA] Tracing standard",
+      "requestsPerMonth": 500000,
+      "samplingRate": 5
+    },
+    {
+      "service": "systems-manager",
+      "group": "QA",
+      "description": "[QA] Parameter Store",
+      "standardParams": 50,
+      "apiInteractionsPerParam": 500
+    },
+    {
+      "service": "secrets-manager",
+      "group": "QA",
+      "description": "[QA] Secretos productivos (sandbox)",
+      "numberOfSecrets": 10,
+      "avgSecretDurationDays": 30,
+      "apiCallsPerMonth": 100000
+    },
+    {
+      "service": "ecr",
+      "group": "QA",
+      "description": "[QA] Imágenes del agente AgentCore",
+      "storageGB": 15
+    },
+    {
+      "service": "appsync",
+      "group": "QA",
+      "description": "[QA] GraphQL API + Real-Time subscriptions",
+      "apiRequestsPerMonth": 500000,
+      "enableRealTime": true,
+      "subscribedClients": 50,
+      "realTimeAvgDurationMinutes": 3,
+      "inboundMessagesPerMonth": 20000,
+      "outboundMessagesPerMonth": 80000,
+      "enableDataTransfer": false
+    },
+    {
+      "service": "glue",
+      "group": "QA",
+      "description": "[QA] ETL PySpark - 2 DPU × 30 min/día",
+      "sparkDpus": 2,
+      "sparkMinutesPerMonth": 900
+    },
+
+    {
+      "service": "lambda",
+      "group": "PROD",
+      "description": "[PROD] Lambdas de procesamiento - 6 fuentes 24/7 (process-start, process-log, glue trigger, collect-logs, notification)",
+      "requests": 10000000,
+      "durationMs": 500,
+      "memoryMB": 1024
+    },
+    {
+      "service": "lambda",
+      "group": "PROD",
+      "description": "[PROD] Lambdas de API + integración (get-process, get-history, get-dashboard, presigned-url, pre-signup, post-confirmation)",
+      "requests": 5000000,
+      "durationMs": 200,
+      "memoryMB": 512
+    },
+    {
+      "service": "step-functions",
+      "group": "PROD",
+      "description": "[PROD] ProcessLogsStateMachine - flujo productivo continuo (Distributed Map concurrencia 6)",
+      "workflowRequests": 1500000,
+      "transitionsPerWorkflow": 5
+    },
+    {
+      "service": "api-gateway",
+      "group": "PROD",
+      "description": "[PROD] HTTP API v2 - tráfico productivo del frontend SOC",
+      "httpRequests": 10
+    },
+    {
+      "service": "eventbridge",
+      "group": "PROD",
+      "description": "[PROD] EventBridge - S3 Notifications + CRON 24/7",
+      "customEvents": 10
+    },
+    {
+      "service": "dynamodb",
+      "group": "PROD",
+      "description": "[PROD] Tablas productivas (userTable, processTable, logsTable, configTable, executionTable, notificationTable)",
+      "capacityMode": "on-demand",
+      "storageGB": 200
+    },
+    {
+      "service": "s3",
+      "group": "PROD",
+      "description": "[PROD] Logs raw - 6 fuentes perimetrales (Wazuh, Graylog, Cisco Firepower, Elastic, Greenbone, Sophos)",
+      "storageGB": 1000
+    },
+    {
+      "service": "s3",
+      "group": "PROD",
+      "description": "[PROD] Logs clean + contexto normalizado",
+      "storageGB": 500
+    },
+    {
+      "service": "s3",
+      "group": "PROD",
+      "description": "[PROD] Reportes generados por Bedrock + assets del portal",
+      "storageGB": 100
+    },
+    {
+      "service": "cognito",
+      "group": "PROD",
+      "description": "[PROD] User Pool - analistas SOC + administradores",
+      "tier": "lite",
+      "mau": 50
+    },
+    {
+      "service": "waf",
+      "group": "PROD",
+      "description": "[PROD] Firewall del API Gateway con managed rules",
+      "webACLs": 1,
+      "rulesPerACL": 5,
+      "managedRuleGroups": 3,
+      "requestsPerMonth": 10
+    },
+    {
+      "service": "vpn",
+      "group": "PROD",
+      "description": "[PROD] VPN Site-to-Site con on-premise ASICOM",
+      "siteToSiteConnections": 1,
+      "hoursPerDay": 24
+    },
+    {
+      "service": "cloudfront",
+      "group": "PROD",
+      "description": "[PROD] CDN del portal de administración",
+      "pricingModel": "payg",
+      "dataOutGB": 200,
+      "httpsRequests": 5000000
+    },
+    {
+      "service": "bedrock",
+      "group": "PROD",
+      "description": "[PROD] Claude Sonnet 4.6 - análisis sobre logs críticos seleccionados (filtrados desde el pipeline antes de invocar al modelo)",
+      "provider": "Anthropic",
+      "model": "Claude Sonnet 4.6",
+      "requestsPerMinute": 1,
+      "hoursPerDay": 8,
+      "inputTokensPerRequest": 3000,
+      "outputTokensPerRequest": 800
+    },
+    {
+      "service": "bedrock-agentcore",
+      "group": "PROD",
+      "description": "[PROD] AgentCore Runtime + Gateway + Observability - operación productiva",
+      "enableGateway": true,
+      "enableObservability": true,
+      "sessionsPerMonth": 30000,
+      "avgSessionDurationSec": 45,
+      "ioWaitPercent": 50,
+      "avgVcpu": 1,
+      "avgSessionMemoryGB": 2,
+      "gatewaySessions": 30000,
+      "gatewayTools": 12,
+      "gatewaySearchRequests": 5,
+      "gatewayToolInvocations": 25,
+      "observabilityLogsGB": 30,
+      "observabilitySpansGB": 15
+    },
+    {
+      "service": "athena",
+      "group": "PROD",
+      "description": "[PROD] Analytics sobre logs en S3 - dashboards y reportería",
+      "queriesPerMonth": 600,
+      "dataScannedPerQueryGB": 5
+    },
+    {
+      "service": "cloudwatch",
+      "group": "PROD",
+      "description": "[PROD] Métricas + Logs de toda la plataforma productiva",
+      "metrics": 200
+    },
+    {
+      "service": "xray",
+      "group": "PROD",
+      "description": "[PROD] Distributed tracing productivo",
+      "requestsPerMonth": 5000000,
+      "samplingRate": 5
+    },
+    {
+      "service": "systems-manager",
+      "group": "PROD",
+      "description": "[PROD] Parameter Store - secretos y configuración",
+      "standardParams": 80,
+      "apiInteractionsPerParam": 1000
+    },
+    {
+      "service": "secrets-manager",
+      "group": "PROD",
+      "description": "[PROD] Secretos productivos (Redshift creds, VirusTotal/AbuseIPDB/AlienVault API keys, OAuth secrets)",
+      "numberOfSecrets": 20,
+      "avgSecretDurationDays": 30,
+      "apiCallsPerMonth": 1000000
+    },
+    {
+      "service": "ecr",
+      "group": "PROD",
+      "description": "[PROD] Imágenes del agente Bedrock AgentCore - múltiples versiones",
+      "storageGB": 30
+    },
+    {
+      "service": "appsync",
+      "group": "PROD",
+      "description": "[PROD] GraphQL API + Real-Time subscriptions para notificaciones SOC en tiempo real",
+      "apiRequestsPerMonth": 1000000,
+      "enableRealTime": true,
+      "subscribedClients": 100,
+      "realTimeAvgDurationMinutes": 5,
+      "inboundMessagesPerMonth": 50000,
+      "outboundMessagesPerMonth": 200000,
+      "enableDataTransfer": false
+    },
+    {
+      "service": "glue",
+      "group": "PROD",
+      "description": "[PROD] ETL PySpark Glue 5.0 - normalización de logs de 6 fuentes (2 DPU × 60 min/día)",
+      "sparkDpus": 2,
+      "sparkMinutesPerMonth": 1800
+    },
+    {
+      "service": "redshift",
+      "group": "PROD",
+      "description": "[PROD] Redshift Serverless - data warehouse de logs normalizados (8 RPU × 1h/día)",
+      "mode": "serverless",
+      "baseRPU": 8,
+      "hoursPerDay": 1
+    }
+  ]
+}

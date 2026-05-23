@@ -1,0 +1,14 @@
+{
+  "name": "aws-calculator-playwright",
+  "version": "1.0.0",
+  "description": "Generate AWS Pricing Calculator estimates via browser automation",
+  "type": "module",
+  "bin": { "aws-estimate": "./estimate.js" },
+  "scripts": {
+    "estimate": "node estimate.js",
+    "install-browsers": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  }
+}

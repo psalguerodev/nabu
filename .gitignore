@@ -1,0 +1,21 @@
+node_modules/
+target/
+dist/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# Tauri
+src-tauri/target/
+src-tauri/Cargo.lock
+
+# Local state
+*.db
+*.db-journal
+local-catalog/
+
+# Editor
+.vscode/
+.idea/

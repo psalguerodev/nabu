@@ -1,0 +1,162 @@
+{
+  "name": "TCG - Motor de Imágenes Escenario 3 - Claude Sonnet",
+  "description": "Escenario 3 - 20K fotos/mes (feature consolidada, tráfico alto). Powered by Anthropic Claude Sonnet 4.6 + SageMaker Async g5.2xlarge. Misma arquitectura que Escenario 4, ajustada por volumen.",
+  "services": [
+    {
+      "service": "dynamodb",
+      "group": "Persistencia",
+      "description": "Tabla resultados procesamiento (1KB items)",
+      "capacityMode": "on-demand",
+      "storageGB": 200,
+      "avgItemSizeKB": 1
+    },
+    {
+      "service": "dynamodb",
+      "group": "Persistencia",
+      "description": "Tabla persistencia principal (3KB items)",
+      "capacityMode": "on-demand",
+      "storageGB": 200,
+      "avgItemSizeKB": 3
+    },
+    {
+      "service": "s3",
+      "group": "Almacenamiento",
+      "description": "Imágenes de góndolas (20K fotos x ~1.75MB)",
+      "storageGB": 120,
+      "putRequests": 20000,
+      "getRequests": 20000
+    },
+    {
+      "service": "s3-vectors",
+      "group": "Almacenamiento",
+      "description": "Embeddings catálogo SKUs (3K productos)",
+      "numberOfIndexes": 1,
+      "vectorsPerIndex": 120000,
+      "vectorDimensions": 1024,
+      "filterableMetadataKB": 2,
+      "keySizeKB": 0.5,
+      "percentOverwrittenPerMonth": 0.167,
+      "totalQueriesPerMonth": 20000
+    },
+    {
+      "service": "s3",
+      "group": "FrontEnd",
+      "description": "Hosting frontend SPA (estático)",
+      "storageGB": 5,
+      "putRequests": 1000,
+      "getRequests": 45000
+    },
+    {
+      "service": "cloudfront",
+      "group": "FrontEnd",
+      "description": "CDN + Front (150 MAU)",
+      "pricingModel": "payg",
+      "dataOutGB": 40,
+      "httpsRequests": 350000
+    },
+    {
+      "service": "waf",
+      "group": "FrontEnd",
+      "description": "Protección WAF",
+      "webAcls": 2,
+      "rulesPerAcl": 5
+    },
+    {
+      "service": "cognito",
+      "group": "FrontEnd",
+      "description": "Auth scouts + analistas",
+      "tier": "essentials",
+      "mau": 150
+    },
+    {
+      "service": "api-gateway",
+      "group": "APIs",
+      "description": "HTTP API ingesta fotos + consultas",
+      "httpRequests": 0.020
+    },
+    {
+      "service": "lambda",
+      "group": "Procesamiento",
+      "description": "Orquestación entre servicios",
+      "requests": 40000,
+      "durationMs": 500,
+      "memoryMB": 512
+    },
+    {
+      "service": "step-functions",
+      "group": "Procesamiento",
+      "description": "Workflow por foto",
+      "workflowRequests": 28000,
+      "transitionsPerWorkflow": 5
+    },
+    {
+      "service": "sagemaker-async",
+      "group": "Procesamiento Imagenes",
+      "description": "YOLO + Grounding DINO (visión, bbox) - 8h/día",
+      "modelsDeployed": 1,
+      "modelsPerEndpoint": 1,
+      "instancesPerEndpoint": 1,
+      "hoursPerDay": 8,
+      "daysPerMonth": 30,
+      "instanceType": "ml.g5.2xlarge",
+      "storageAmountGB": 100
+    },
+    {
+      "service": "textract",
+      "group": "Procesamiento Imagenes",
+      "description": "OCR precios de etiquetas",
+      "numberOfPages": 20000,
+      "percentWithText": 100
+    },
+    {
+      "service": "bedrock",
+      "group": "Capa LLM",
+      "description": "Claude Sonnet 4.6 razonamiento multimodal (1 call/foto)",
+      "provider": "Anthropic",
+      "model": "Claude Sonnet 4.6",
+      "requestsPerMinute": 1,
+      "hoursPerDay": 11,
+      "inputTokensPerRequest": 800,
+      "outputTokensPerRequest": 350
+    },
+    {
+      "service": "bedrock-agentcore",
+      "group": "Capa Agentica",
+      "description": "AgentCore Runtime + Observability",
+      "enableObservability": true,
+      "sessionsPerMonth": 20000,
+      "avgSessionDurationSec": 15,
+      "ioWaitPercent": 20,
+      "avgVcpu": 2,
+      "avgSessionMemoryGB": 5,
+      "observabilityLogsGB": 5,
+      "observabilitySpansGB": 5
+    },
+    {
+      "service": "athena",
+      "group": "Analitica",
+      "description": "Consultas analíticas / reporting",
+      "queriesPerMonth": 2250,
+      "dataScannedPerQueryGB": 1
+    },
+    {
+      "service": "cloudwatch",
+      "group": "Observabilidad",
+      "description": "Métricas + logs",
+      "metrics": 40
+    },
+    {
+      "service": "cloudtrail",
+      "group": "Observabilidad",
+      "description": "Trazabilidad eventos AWS",
+      "mgmtEvents": 5000,
+      "mgmtTrails": 3,
+      "s3Operations": 15000,
+      "s3Trails": 3,
+      "lambdaEvents": 10,
+      "lambdaTrails": 1,
+      "networkEvents": 5000,
+      "networkTrails": 1
+    }
+  ]
+}

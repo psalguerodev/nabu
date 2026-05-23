@@ -1,0 +1,153 @@
+{
+  "name": "Security Platform - ASICOM",
+  "description": "Plataforma de seguridad con ingesta de datos on-premise, procesamiento serverless, AI agents, y portal de administración",
+  "services": [
+    {
+      "service": "vpn",
+      "group": "Redes",
+      "description": "VPN Site-to-Site con on-premise",
+      "siteToSiteConnections": 1,
+      "hoursPerDay": 24
+    },
+    {
+      "service": "cloudfront",
+      "group": "Redes",
+      "description": "Portal de Administración CDN",
+      "pricingModel": "payg",
+      "dataOutGB": 50,
+      "httpsRequests": 500000
+    },
+    {
+      "service": "api-gateway",
+      "group": "Redes",
+      "description": "REST API para el portal + integraciones",
+      "httpRequests": 2
+    },
+    {
+      "service": "waf",
+      "group": "Seguridad",
+      "description": "Firewall frente al API Gateway",
+      "webACLs": 1,
+      "rulesPerACL": 5,
+      "managedRuleGroups": 2,
+      "requestsPerMonth": 2
+    },
+    {
+      "service": "cognito",
+      "group": "Seguridad",
+      "description": "Autenticación de usuarios del portal",
+      "tier": "lite",
+      "mau": 1000
+    },
+    {
+      "service": "lambda",
+      "group": "Procesamiento",
+      "description": "Step Functions workflow: Registry + Limpieza + Procesamiento + Notificación",
+      "requests": 1000000,
+      "durationMs": 500,
+      "memoryMB": 512
+    },
+    {
+      "service": "step-functions",
+      "group": "Procesamiento",
+      "description": "Workflow orquestador de ingesta de datos",
+      "workflowRequests": 250000,
+      "transitionsPerWorkflow": 5
+    },
+    {
+      "service": "eventbridge",
+      "group": "Procesamiento",
+      "description": "CRON que dispara el Step Functions workflow",
+      "customEvents": 1
+    },
+    {
+      "service": "lambda",
+      "group": "Procesamiento",
+      "description": "API Lambda + Integration Lambdas",
+      "requests": 2000000,
+      "durationMs": 200,
+      "memoryMB": 256
+    },
+    {
+      "service": "s3",
+      "group": "Almacenamiento",
+      "description": "Logs Raw - datos crudos de fuentes on-premise",
+      "storageGB": 200
+    },
+    {
+      "service": "s3",
+      "group": "Almacenamiento",
+      "description": "Logs Standard - datos procesados y normalizados",
+      "storageGB": 200
+    },
+    {
+      "service": "s3",
+      "group": "Almacenamiento",
+      "description": "Platform Website - assets estáticos del portal",
+      "storageGB": 5
+    },
+    {
+      "service": "dynamodb",
+      "group": "Almacenamiento",
+      "description": "Application Data store",
+      "capacityMode": "on-demand",
+      "storageGB": 50
+    },
+    {
+      "service": "bedrock",
+      "group": "AI",
+      "description": "Claude Sonnet 4.6 - modelo principal del agente",
+      "provider": "Anthropic",
+      "model": "Claude Sonnet 4.6",
+      "requestsPerMinute": 2,
+      "hoursPerDay": 12,
+      "inputTokensPerRequest": 3000,
+      "outputTokensPerRequest": 800
+    },
+    {
+      "service": "bedrock-agentcore",
+      "group": "AI",
+      "description": "AgentCore Runtime + Gateway + Observability",
+      "enableGateway": true,
+      "enableObservability": true,
+      "sessionsPerMonth": 10000,
+      "avgSessionDurationSec": 30,
+      "ioWaitPercent": 50,
+      "avgVcpu": 1,
+      "avgSessionMemoryGB": 1,
+      "gatewaySessions": 10000,
+      "gatewayTools": 10,
+      "gatewaySearchRequests": 5,
+      "gatewayToolInvocations": 20,
+      "observabilityLogsGB": 10,
+      "observabilitySpansGB": 5
+    },
+    {
+      "service": "athena",
+      "group": "Observabilidad",
+      "description": "Analytics sobre logs en S3",
+      "queriesPerMonth": 17,
+      "dataScannedPerQueryGB": 5
+    },
+    {
+      "service": "cloudwatch",
+      "group": "Observabilidad",
+      "description": "Metrics & Logs de toda la plataforma",
+      "metrics": 50
+    },
+    {
+      "service": "xray",
+      "group": "Observabilidad",
+      "description": "Traces de las invocaciones Lambda y API",
+      "requestsPerMonth": 1000000,
+      "samplingRate": 5
+    },
+    {
+      "service": "systems-manager",
+      "group": "Observabilidad",
+      "description": "Gestión de parámetros y configuración",
+      "standardParams": 50,
+      "apiInteractionsPerParam": 1000
+    }
+  ]
+}
