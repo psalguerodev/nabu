@@ -22,17 +22,17 @@ import { createHash } from "node:crypto";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
 import { sign } from "../sign/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
 const CATALOG_DIR = join(REPO, "mcp", "catalog");
 const HANDLERS_DIR = join(REPO, "runner", "lib", "services");
-// Output sits under mcp/ so the published schemas can resolve `zod` from
-// mcp/node_modules at runtime. Tauri installs that come from the network
-// will be unpacked under <app_config_dir>/remote-catalog/ — that path
-// will need a separate dep-resolution strategy (bundle deps with esbuild),
-// addressed in a follow-up.
+// Schemas are bundled with esbuild so `zod` ships inlined. That way the
+// published files load from any directory regardless of node_modules
+// proximity — required for Tauri installs that land under
+// <app_config_dir>/remote-catalog/.
 const OUT = join(REPO, "mcp", "dist", "release");
 
 function loadDotenv() {
@@ -89,7 +89,22 @@ async function main() {
     const handlerSrc = join(HANDLERS_DIR, `${name}.js`);
     const schemaDst = join(OUT, "schemas", `${name}.js`);
     const handlerDst = join(OUT, "handlers", `${name}.js`);
-    copyFileSync(schemaSrc, schemaDst);
+
+    // Bundle the schema with zod inlined so it can be imported from any
+    // directory the user drops it into.
+    await build({
+      entryPoints: [schemaSrc],
+      outfile: schemaDst,
+      bundle: true,
+      minify: true,
+      format: "esm",
+      platform: "neutral",
+      target: ["node22"],
+      logLevel: "silent",
+    });
+
+    // Handlers have no imports today — they only use the Playwright `page`
+    // argument that the orchestrator hands them — so a plain copy is fine.
     copyFileSync(handlerSrc, handlerDst);
 
     releaseServices[name] = {

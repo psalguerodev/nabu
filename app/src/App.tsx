@@ -18,6 +18,9 @@ const HEALTH_URL = `${MCP_BASE}/health`;
 const SERVICES_URL = `${MCP_BASE}/services`;
 const JOBS_URL = `${MCP_BASE}/jobs`;
 const RELOAD_URL = `${MCP_BASE}/reload`;
+const INSTALL_URL = `${MCP_BASE}/install`;
+const DEFAULT_RELEASE_URL =
+  "https://github.com/psalguerodev/nabu/releases/latest/download/";
 const POLL_INTERVAL_MS = 2000;
 
 type McpStatus =
@@ -140,6 +143,9 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
   const [error, setError] = useState<string | null>(null);
   const [reloading, setReloading] = useState(false);
   const [lastReload, setLastReload] = useState<string | null>(null);
+  const [installing, setInstalling] = useState(false);
+  const [releaseUrl, setReleaseUrl] = useState(DEFAULT_RELEASE_URL);
+  const [installResult, setInstallResult] = useState<string | null>(null);
 
   const refetch = async () => {
     try {
@@ -173,6 +179,32 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
       setError((e as Error).message);
     } finally {
       setReloading(false);
+    }
+  };
+
+  const installFromRemote = async () => {
+    setInstalling(true);
+    setInstallResult(null);
+    setError(null);
+    try {
+      const res = await fetch(INSTALL_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base_url: releaseUrl }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) {
+        setError(body.error ?? `HTTP ${res.status}`);
+      } else {
+        setInstallResult(
+          `Installed ${body.installed_services} service(s) at ${body.catalog_version}`,
+        );
+        await refetch();
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setInstalling(false);
     }
   };
 
@@ -241,46 +273,49 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
         </div>
       </section>
 
-      {remote.length > 0 && (
-        <section className="card">
-          <div className="eyebrow">Active remote overrides</div>
-          <ul className="updates-list">
-            {remote.map((s) => (
-              <li key={s.name}>
-                <span className="updates-list__name">{s.name}</span>
-                <span className="badge badge--succeeded">remote</span>
-                <span className="catalog-meta">
-                  handler v{s.handler_version ?? "?"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <section className="card updates-install">
+        <div className="eyebrow">Install from remote</div>
+        <label className="updates-install__row">
+          <span className="setting-label">Release base URL</span>
+          <input
+            type="text"
+            value={releaseUrl}
+            onChange={(e) => setReleaseUrl(e.currentTarget.value)}
+            placeholder="https://.../releases/latest/download/"
+          />
+        </label>
+        <div className="updates-install__actions">
+          {installResult && (
+            <span className="catalog-meta">{installResult}</span>
+          )}
+          {error && <span className="error-text">{error}</span>}
+          <button
+            className="btn btn--primary"
+            onClick={installFromRemote}
+            disabled={installing || !releaseUrl}
+          >
+            {installing ? "Installing…" : "Install latest release"}
+          </button>
+        </div>
+      </section>
 
-      <section className="card updates-help">
-        <div className="eyebrow">How to install a new release</div>
-        <ol className="updates-steps">
-          <li>
-            Publish a bundle locally:{" "}
-            <code>pnpm -C mcp release [services]</code>. Output lands in{" "}
-            <code>mcp/dist/release/</code>.
-          </li>
-          <li>
-            Copy the bundle into the app's remote-catalog directory (the
-            same path the MCP was started with via{" "}
-            <code>NABU_REMOTE_CATALOG_DIR</code>).
-          </li>
-          <li>
-            Press <strong>Reload catalog from disk</strong> above. The MCP
-            verifies the Ed25519 signature and per-file sha256, then swaps
-            in the overlay without restarting.
-          </li>
-        </ol>
-        <p className="placeholder">
-          A networked installer ("Check for updates" against GitHub
-          Releases) is coming next.
-        </p>
+      <section className="card">
+        <div className="eyebrow">Installed services</div>
+        <ul className="updates-list">
+          {services.map((s) => (
+            <li key={s.name}>
+              <span className="updates-list__name">{s.name}</span>
+              <span className="catalog-meta">
+                v{s.handler_version ?? "?"}
+              </span>
+              <span
+                className={`badge ${s.source === "remote" ? "badge--succeeded" : ""}`}
+              >
+                {s.source ?? "embedded"}
+              </span>
+            </li>
+          ))}
+        </ul>
       </section>
     </>
   );

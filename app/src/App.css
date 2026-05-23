@@ -640,6 +640,44 @@ body,
   font-size: 12px;
 }
 
+.updates-install {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.updates-install__row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.updates-install__row input[type="text"] {
+  appearance: none;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 13px;
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.updates-install__row input[type="text"]:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.updates-install__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 /* ============================================================
    Settings tab
    ============================================================ */

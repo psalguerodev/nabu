@@ -7,7 +7,16 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { createServer as createHttpServer } from "node:http";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { mkdtemp, mkdir, rm, rename, readFile, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, dirname as pathDirname } from "node:path";
+import { verify } from "./sign/index.js";
+import { NABU_PUBKEY_HEX } from "./sign/pubkey.js";
+
+const execFileAsync = promisify(execFile);
 
 import { tools, registry } from "./tools/index.js";
 import { SERVER_NAME, SERVER_VERSION } from "./tools/get-version.js";
@@ -42,6 +51,106 @@ function isInitializeRequest(body) {
   if (!body) return false;
   if (Array.isArray(body)) return body.some(isInitializeRequest);
   return body.method === "initialize";
+}
+
+async function readJson(req) {
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  const raw = Buffer.concat(chunks).toString();
+  return raw ? JSON.parse(raw) : {};
+}
+
+function sha256File(path) {
+  return readFile(path).then((buf) =>
+    createHash("sha256").update(buf).digest("hex"),
+  );
+}
+
+async function fetchToFile(url, dest) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`GET ${url} -> HTTP ${res.status}`);
+  const buf = Buffer.from(await res.arrayBuffer());
+  await writeFile(dest, buf);
+}
+
+async function installRelease({ base_url, tarball_url }) {
+  const targetDir = process.env.NABU_REMOTE_CATALOG_DIR;
+  if (!targetDir) {
+    throw new Error(
+      "NABU_REMOTE_CATALOG_DIR is not set; cannot install a remote release",
+    );
+  }
+  if (!base_url && !tarball_url) {
+    throw new Error("provide base_url or tarball_url");
+  }
+  const base = base_url
+    ? base_url.endsWith("/") ? base_url : `${base_url}/`
+    : null;
+
+  // Stage into a temp dir so a failed install never corrupts the active overlay.
+  const stage = await mkdtemp(join(tmpdir(), "nabu-install-"));
+  try {
+    // 1. fetch index + signature
+    const indexUrl = base ? `${base}latest.json` : tarball_url.replace(/[^/]+$/, "latest.json");
+    const sigUrl = base ? `${base}latest.json.sig` : `${indexUrl}.sig`;
+    const tarUrl = tarball_url ?? `${base}nabu-catalog.tar.gz`;
+
+    const indexPath = join(stage, "latest.json");
+    const sigPath = join(stage, "latest.json.sig");
+    const tarPath = join(stage, "nabu-catalog.tar.gz");
+    await fetchToFile(indexUrl, indexPath);
+    await fetchToFile(sigUrl, sigPath);
+    await fetchToFile(tarUrl, tarPath);
+
+    // 2. verify signature
+    const indexRaw = (await readFile(indexPath)).toString("utf8");
+    const sig = (await readFile(sigPath)).toString("utf8").trim();
+    const ok = await verify(indexRaw, sig, NABU_PUBKEY_HEX);
+    if (!ok) throw new Error("ed25519 signature on latest.json did not verify");
+    const index = JSON.parse(indexRaw);
+
+    // 3. extract tarball into stage/extract/
+    const extract = join(stage, "extract");
+    await mkdir(extract, { recursive: true });
+    await execFileAsync("tar", ["-xzf", tarPath, "-C", extract]);
+
+    // 4. verify per-file sha256 against the signed index
+    const verified = [];
+    for (const [name, meta] of Object.entries(index.services ?? {})) {
+      const schemaPath = join(extract, meta.schema_ref);
+      const handlerPath = join(extract, meta.handler_ref);
+      const schemaHash = await sha256File(schemaPath);
+      const handlerHash = await sha256File(handlerPath);
+      if (meta.schema_sha256 && meta.schema_sha256 !== schemaHash) {
+        throw new Error(`schema sha256 mismatch for ${name}`);
+      }
+      if (meta.handler_sha256 && meta.handler_sha256 !== handlerHash) {
+        throw new Error(`handler sha256 mismatch for ${name}`);
+      }
+      verified.push(name);
+    }
+
+    // 5. atomic-ish swap into the active overlay dir.
+    // rename is atomic on same filesystem; we replace the directory wholesale.
+    await mkdir(pathDirname(targetDir), { recursive: true });
+    const backup = `${targetDir}.previous`;
+    await rm(backup, { recursive: true, force: true });
+    try {
+      await rename(targetDir, backup);
+    } catch (err) {
+      if (err.code !== "ENOENT") throw err;
+    }
+    await rename(extract, targetDir);
+    await rm(backup, { recursive: true, force: true });
+
+    return {
+      catalog_version: index.catalog_version,
+      installed_services: verified.length,
+      services: verified,
+    };
+  } finally {
+    await rm(stage, { recursive: true, force: true });
+  }
 }
 
 async function readJsonBody(req) {
@@ -118,6 +227,19 @@ export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
           schema: entry.jsonSchema,
         }),
       );
+      return;
+    }
+    if (req.url === "/install" && req.method === "POST") {
+      try {
+        const body = await readJson(req);
+        const result = await installRelease(body);
+        await reloadCatalog();
+        res.writeHead(200, { ...cors, "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, ...result }));
+      } catch (err) {
+        res.writeHead(500, { ...cors, "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: String(err.message ?? err) }));
+      }
       return;
     }
     if (req.url === "/reload" && req.method === "POST") {
