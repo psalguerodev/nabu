@@ -1,6 +1,30 @@
-import { registerService } from "../calculator.js";
+export const id = "bedrock-agentcore";
 
-registerService("bedrock-agentcore", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    enableGateway: params.enable_gateway,
+    enableIdentity: params.enable_identity,
+    enableBrowserTools: params.enable_browser_tools,
+    enableCodeInterpreter: params.enable_code_interpreter,
+    enableMemory: params.enable_memory,
+    enableObservability: params.enable_observability,
+    sessionsPerMonth: params.sessions_per_month,
+    avgSessionDurationSec: params.avg_session_duration_sec,
+    ioWaitPercent: params.io_wait_percent,
+    avgVcpu: params.avg_vcpu,
+    avgSessionMemoryGB: params.avg_session_memory_gb,
+    gatewaySessions: params.gateway_sessions,
+    gatewayTools: params.gateway_tools,
+    gatewaySearchRequests: params.gateway_search_requests,
+    gatewayToolInvocations: params.gateway_tool_invocations,
+    observabilityLogsGB: params.observability_logs_gb,
+    observabilitySpansGB: params.observability_spans_gb,
+  };
+}
+
+export async function handler(page, config) {
   const {
     // Sub-services to enable
     enableGateway = false,
@@ -125,4 +149,4 @@ registerService("bedrock-agentcore", async (page, config) => {
   if (invalid.length > 0) {
     console.error("⚠️ AgentCore invalid fields:", JSON.stringify(invalid));
   }
-});
+}

@@ -1,6 +1,16 @@
-import { registerService } from "../calculator.js";
+export const id = "s3";
 
-registerService("s3", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    storageGB: params.storage_gb,
+    putRequests: params.put_requests_per_month ?? 0,
+    getRequests: params.get_requests_per_month ?? 0,
+  };
+}
+
+export async function handler(page, config) {
   const {
     storageGB = 0,
     putRequests = 0,
@@ -24,4 +34,4 @@ registerService("s3", async (page, config) => {
     const getInput = page.getByRole("textbox", { name: /GET, SELECT, and all other requests/ });
     await getInput.fill(String(getRequests));
   }
-});
+}

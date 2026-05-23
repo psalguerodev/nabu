@@ -1,6 +1,20 @@
-import { registerService } from "../calculator.js";
+export const id = "appsync";
 
-registerService("appsync", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    apiRequestsPerMonth: params.api_requests_per_month,
+    enableRealTime: params.enable_real_time,
+    subscribedClients: params.subscribed_clients,
+    realTimeAvgDurationMinutes: params.real_time_avg_duration_minutes,
+    inboundMessagesPerMonth: params.inbound_messages_per_month,
+    outboundMessagesPerMonth: params.outbound_messages_per_month,
+    enableDataTransfer: params.enable_data_transfer,
+  };
+}
+
+export async function handler(page, config) {
   const {
     apiRequestsPerMonth = 0,
     enableRealTime = false,
@@ -43,4 +57,4 @@ registerService("appsync", async (page, config) => {
 
   await page.keyboard.press("Tab");
   await page.waitForTimeout(500);
-});
+}

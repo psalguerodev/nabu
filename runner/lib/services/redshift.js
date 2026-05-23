@@ -1,9 +1,23 @@
-import { registerService } from "../calculator.js";
+export const id = "redshift";
+
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    mode: params.mode,
+    nodes: params.nodes,
+    instanceType: params.instance_type,
+    utilizationPercent: params.utilization_percent,
+    baseRPU: params.base_rpu,
+    hoursPerDay: params.hours_per_day,
+    workloadSize: params.workload_size,
+  };
+}
 
 // Amazon Redshift - supports both Provisioned and Serverless modes.
 // Provisioned: nodes × instance type × utilization × pricing model.
 // Serverless: baseRPU × hoursPerDay × $0.366/RPU-hr (us-east-2).
-registerService("redshift", async (page, config) => {
+export async function handler(page, config) {
   const {
     mode = "serverless",
     nodes = 1,
@@ -62,4 +76,4 @@ registerService("redshift", async (page, config) => {
 
   await page.keyboard.press("Tab");
   await page.waitForTimeout(500);
-});
+}

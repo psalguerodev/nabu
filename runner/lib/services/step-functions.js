@@ -1,6 +1,16 @@
-import { registerService } from "../calculator.js";
+export const id = "step-functions";
 
-registerService("step-functions", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    workflowRequests: params.workflow_requests,
+    transitionsPerWorkflow: params.transitions_per_workflow,
+    express: params.express,
+  };
+}
+
+export async function handler(page, config) {
   const {
     workflowRequests = 0,
     transitionsPerWorkflow = 0,
@@ -23,4 +33,4 @@ registerService("step-functions", async (page, config) => {
     const transInput = page.getByRole("textbox", { name: /State transitions per workflow/ });
     await transInput.fill(String(transitionsPerWorkflow));
   }
-});
+}

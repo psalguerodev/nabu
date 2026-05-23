@@ -1,6 +1,16 @@
-import { registerService } from "../calculator.js";
+export const id = "api-gateway";
 
-registerService("api-gateway", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    httpRequests: params.http_requests_millions_per_month,
+    restRequests: params.rest_requests_millions_per_month,
+    avgRequestSizeKB: params.avg_request_size_kb,
+  };
+}
+
+export async function handler(page, config) {
   const {
     httpRequests = 0,       // millions per month
     restRequests = 0,       // millions per month
@@ -39,4 +49,4 @@ registerService("api-gateway", async (page, config) => {
     const wsInput = page.getByRole("spinbutton", { name: /Messages Value/ });
     await wsInput.fill(String(websocketMessages));
   }
-});
+}

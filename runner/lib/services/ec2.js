@@ -1,6 +1,18 @@
-import { registerService } from "../calculator.js";
+export const id = "ec2";
 
-registerService("ec2", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    instances: params.count,
+    instanceType: params.instance_type,
+    os: params.os === "windows" ? "Windows" : "Linux",
+    pricing: "On-Demand",
+    hoursPerMonth: params.hours_per_month,
+  };
+}
+
+export async function handler(page, config) {
   const {
     instances = 1,
     instanceType = "t3.medium",
@@ -50,4 +62,4 @@ registerService("ec2", async (page, config) => {
       await hoursField.fill(String(hoursPerMonth));
     }
   }
-});
+}

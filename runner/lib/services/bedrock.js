@@ -1,4 +1,17 @@
-import { registerService } from "../calculator.js";
+export const id = "bedrock";
+
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    provider: params.provider,
+    model: params.model,
+    requestsPerMinute: params.requests_per_minute,
+    hoursPerDay: params.hours_per_day,
+    inputTokensPerRequest: params.input_tokens_per_request,
+    outputTokensPerRequest: params.output_tokens_per_request,
+  };
+}
 
 // Amazon Bedrock - Foundation Model pricing
 //
@@ -13,7 +26,7 @@ import { registerService } from "../calculator.js";
 //
 // Available Amazon Nova models (as of 2026-05):
 //   Nova Micro, Nova Lite, Nova Pro, Nova Premier
-registerService("bedrock", async (page, config) => {
+export async function handler(page, config) {
   const {
     provider = "Anthropic",
     model = null,
@@ -87,4 +100,4 @@ registerService("bedrock", async (page, config) => {
 
   await page.keyboard.press("Tab");
   await page.waitForTimeout(500);
-});
+}

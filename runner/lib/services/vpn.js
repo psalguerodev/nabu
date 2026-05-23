@@ -1,6 +1,15 @@
-import { registerService } from "../calculator.js";
+export const id = "vpn";
 
-registerService("vpn", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    siteToSiteConnections: params.site_to_site_connections,
+    hoursPerDay: params.hours_per_day,
+  };
+}
+
+export async function handler(page, config) {
   const {
     siteToSiteConnections = 1,
     hoursPerDay = 24,
@@ -18,4 +27,4 @@ registerService("vpn", async (page, config) => {
     const durInput = page.getByRole("spinbutton", { name: /Average duration for each connection Value/ }).first();
     await durInput.fill(String(hoursPerDay));
   }
-});
+}

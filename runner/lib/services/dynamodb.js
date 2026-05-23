@@ -1,6 +1,21 @@
-import { registerService } from "../calculator.js";
+export const id = "dynamodb";
 
-registerService("dynamodb", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    capacityMode: params.capacity_mode,
+    storageGB: params.storage_gb,
+    avgItemSizeKB: params.avg_item_size_kb,
+    baselineWriteRate: params.baseline_write_per_sec,
+    peakWriteRate: params.peak_write_per_sec,
+    baselineReadRate: params.baseline_read_per_sec,
+    peakReadRate: params.peak_read_per_sec,
+    peakDurationHours: params.peak_duration_hours,
+  };
+}
+
+export async function handler(page, config) {
   const {
     capacityMode = "provisioned", // "provisioned" or "on-demand"
     storageGB = 0,
@@ -55,4 +70,4 @@ registerService("dynamodb", async (page, config) => {
     await page.getByRole("spinbutton", { name: /Peak read rate Value/ }).fill(String(peakReadRate));
     await page.getByRole("spinbutton", { name: /Duration of peak read activity Value/ }).fill(String(peakDurationHours));
   }
-});
+}

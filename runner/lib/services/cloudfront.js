@@ -1,6 +1,17 @@
-import { registerService } from "../calculator.js";
+export const id = "cloudfront";
 
-registerService("cloudfront", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    pricingModel: "payg",
+    dataOutGB: params.data_out_gb_per_month,
+    dataOutToOriginGB: params.data_to_origin_gb_per_month,
+    httpsRequests: params.https_requests_per_month,
+  };
+}
+
+export async function handler(page, config) {
   const {
     pricingModel = "payg", // "flat" or "payg"
     // Pay as you go
@@ -44,4 +55,4 @@ registerService("cloudfront", async (page, config) => {
     const planInput = page.getByRole("textbox", { name: new RegExp(`${planName} Enter quantity`) });
     await planInput.fill(String(planQuantity));
   }
-});
+}

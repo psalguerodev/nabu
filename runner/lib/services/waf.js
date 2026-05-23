@@ -1,6 +1,19 @@
-import { registerService } from "../calculator.js";
+export const id = "waf";
 
-registerService("waf", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    webACLs: params.web_acls,
+    rulesPerACL: params.rules_per_acl,
+    ruleGroups: params.rule_groups,
+    rulesPerGroup: params.rules_per_group,
+    managedRuleGroups: params.managed_rule_groups,
+    requestsPerMonth: params.requests_per_month,
+  };
+}
+
+export async function handler(page, config) {
   const {
     webACLs = 1,
     rulesPerACL = 5,
@@ -21,4 +34,4 @@ registerService("waf", async (page, config) => {
   await fill("Number of Rules inside each Rule Group", rulesPerGroup);
   await fill("Number of Managed Rule Groups per Web ACL", managedRuleGroups);
   await fill("Number of web requests received", requestsPerMonth);
-});
+}

@@ -116,9 +116,13 @@ export async function createEstimate(services, options = {}) {
         await setRegion(page, svc.region);
       }
 
-      const handler = getServiceHandler(svc.service);
+      if (typeof svc.handler !== "function") {
+        throw new Error(
+          `Service '${svc.service}' is missing a handler() function on its config entry`,
+        );
+      }
       try {
-        await handler(page, svc);
+        await svc.handler(page, svc);
       } catch (err) {
         onProgress({
           type: "service_error",
@@ -358,12 +362,3 @@ function getConfigPattern(service) {
   return map[service] || service;
 }
 
-let handlers = {};
-export function registerService(name, handler) {
-  handlers[name] = handler;
-}
-
-function getServiceHandler(name) {
-  if (!handlers[name]) throw new Error(`Unknown service: ${name}. Available: ${Object.keys(handlers).join(", ")}`);
-  return handlers[name];
-}

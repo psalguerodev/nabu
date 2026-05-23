@@ -1,8 +1,17 @@
-import { registerService } from "../calculator.js";
+export const id = "athena";
+
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    queriesPerDay: params.queries_per_day,
+    dataScannedPerQueryGB: params.data_scanned_per_query_gb,
+  };
+}
 
 // NOTE: "Total number of queries" default unit is "per day" (not per month)
 // The queriesPerDay parameter maps directly to the field value
-registerService("athena", async (page, config) => {
+export async function handler(page, config) {
   const {
     queriesPerDay = 0,
     // Legacy: if queriesPerMonth is provided, convert to per day
@@ -21,4 +30,4 @@ registerService("athena", async (page, config) => {
     const scanInput = page.getByRole("spinbutton", { name: /Amount of data scanned per query Value/ });
     await scanInput.fill(String(dataScannedPerQueryGB));
   }
-});
+}

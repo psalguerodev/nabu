@@ -1,6 +1,16 @@
-import { registerService } from "../calculator.js";
+export const id = "cognito";
 
-registerService("cognito", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    tier: params.tier,
+    mau: params.mau,
+    samlMau: params.saml_mau,
+  };
+}
+
+export async function handler(page, config) {
   const {
     tier = "lite", // "lite", "essentials", "plus"
     mau = 0,       // monthly active users
@@ -24,4 +34,4 @@ registerService("cognito", async (page, config) => {
     const samlInput = page.getByRole("textbox", { name: /SAML or OIDC federation/ });
     await samlInput.fill(String(samlMau));
   }
-});
+}

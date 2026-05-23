@@ -1,4 +1,21 @@
-import { registerService } from "../calculator.js";
+export const id = "cloudtrail";
+
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    mgmtEvents: params.mgmt_events,
+    mgmtTrails: params.mgmt_trails,
+    readMgmtEvents: params.read_mgmt_events,
+    readMgmtTrails: params.read_mgmt_trails,
+    s3Operations: params.s3_operations,
+    s3Trails: params.s3_trails,
+    lambdaEvents: params.lambda_events,
+    lambdaTrails: params.lambda_trails,
+    networkEvents: params.network_events,
+    networkTrails: params.network_trails,
+  };
+}
 
 // AWS CloudTrail
 // Form has 5 sections (all expanded by default):
@@ -6,7 +23,7 @@ import { registerService } from "../calculator.js";
 //   Insight Events, CloudTrail Lake.
 // For low-volume observability use cases, fill only Management Events +
 // minimal Data Events (S3/Lambda).
-registerService("cloudtrail", async (page, config) => {
+export async function handler(page, config) {
   const {
     mgmtEvents = 5000,
     mgmtTrails = 3,
@@ -99,4 +116,4 @@ registerService("cloudtrail", async (page, config) => {
 
   await page.keyboard.press("Tab");
   await page.waitForTimeout(500);
-});
+}

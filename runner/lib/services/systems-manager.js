@@ -1,6 +1,16 @@
-import { registerService } from "../calculator.js";
+export const id = "systems-manager";
 
-registerService("systems-manager", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    standardParams: params.standard_params,
+    advancedParams: params.advanced_params,
+    apiInteractionsPerParam: params.api_interactions_per_param,
+  };
+}
+
+export async function handler(page, config) {
   const {
     standardParams = 0,
     advancedParams = 0,
@@ -22,4 +32,4 @@ registerService("systems-manager", async (page, config) => {
     const apiInput = page.getByRole("spinbutton", { name: /Frequency of API interactions/ });
     await apiInput.fill(String(apiInteractionsPerParam));
   }
-});
+}

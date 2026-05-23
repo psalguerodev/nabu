@@ -1,6 +1,17 @@
-import { registerService } from "../calculator.js";
+export const id = "xray";
 
-registerService("xray", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    requestsPerMonth: params.requests_per_month,
+    samplingRate: params.sampling_rate,
+    queriesPerMonth: params.queries_per_month,
+    tracesPerQuery: params.traces_per_query,
+  };
+}
+
+export async function handler(page, config) {
   const {
     requestsPerMonth = 0,
     samplingRate = 100,
@@ -27,4 +38,4 @@ registerService("xray", async (page, config) => {
     const traceInput = page.getByRole("textbox", { name: /Traces retrieved per query/ });
     await traceInput.fill(String(tracesPerQuery));
   }
-});
+}

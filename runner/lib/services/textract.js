@@ -1,10 +1,28 @@
-import { registerService } from "../calculator.js";
+export const id = "textract";
+
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    numberOfPages: params.number_of_pages,
+    percentWithText: params.percent_with_text,
+    percentWithQueries: params.percent_with_queries,
+    percentWithTables: params.percent_with_tables,
+    percentWithForms: params.percent_with_forms,
+    percentWithFormsTables: params.percent_with_forms_tables,
+    percentWithLayout: params.percent_with_layout,
+    percentWithExpense: params.percent_with_expense,
+    percentWithId: params.percent_with_id,
+    percentWithLending: params.percent_with_lending,
+    percentWithSignatures: params.percent_with_signatures,
+  };
+}
 
 // Amazon Textract
 // Simple form: number of pages + per-API distribution percentages.
 // Defaults: 100% Detect Document Text (basic OCR). Other APIs (Analyze Document,
 // Analyze Expense, Analyze ID, Analyze Lending) are opt-in via percentages.
-registerService("textract", async (page, config) => {
+export async function handler(page, config) {
   const {
     numberOfPages = 0,
     percentWithText = 100,
@@ -41,4 +59,4 @@ registerService("textract", async (page, config) => {
 
   await page.keyboard.press("Tab");
   await page.waitForTimeout(500);
-});
+}

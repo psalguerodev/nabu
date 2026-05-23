@@ -1,6 +1,18 @@
-import { registerService } from "../calculator.js";
+export const id = "lambda";
 
-registerService("lambda", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    requests: params.invocations_per_month,
+    durationMs: params.avg_duration_ms,
+    memoryMB: params.memory_mb,
+    architecture: params.architecture === "arm64" ? "arm64" : "x86",
+    freeTier: false,
+  };
+}
+
+export async function handler(page, config) {
   const {
     requests = 0,
     durationMs = 100,
@@ -38,4 +50,4 @@ registerService("lambda", async (page, config) => {
     const memInput = page.getByRole("spinbutton", { name: /Amount of memory allocated/ }).first();
     await memInput.fill(String(memoryMB));
   }
-});
+}

@@ -1,9 +1,22 @@
-import { registerService } from "../calculator.js";
+export const id = "glue";
+
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    sparkDpus: params.spark_dpus,
+    sparkMinutesPerMonth: params.spark_minutes_per_month,
+    pythonShellDpus: params.python_shell_dpus,
+    pythonShellMinutesPerMonth: params.python_shell_minutes_per_month,
+    interactiveDpus: params.interactive_dpus,
+    interactiveMinutesPerMonth: params.interactive_minutes_per_month,
+  };
+}
 
 // AWS Glue - "ETL jobs and interactive sessions" template (default checked)
 // Pricing: $0.44 per DPU-hour for Apache Spark / Python Shell jobs.
 // Workers: G.1X = 1 DPU, G.2X = 2 DPU per worker.
-registerService("glue", async (page, config) => {
+export async function handler(page, config) {
   const {
     sparkDpus = 0,
     sparkMinutesPerMonth = 0,
@@ -33,4 +46,4 @@ registerService("glue", async (page, config) => {
 
   await page.keyboard.press("Tab");
   await page.waitForTimeout(500);
-});
+}

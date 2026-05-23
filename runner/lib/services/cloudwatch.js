@@ -1,6 +1,15 @@
-import { registerService } from "../calculator.js";
+export const id = "cloudwatch";
 
-registerService("cloudwatch", async (page, config) => {
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    metrics: params.metrics,
+    apiRequests: params.api_requests,
+  };
+}
+
+export async function handler(page, config) {
   const {
     metrics = 0,        // custom/detailed metrics
     apiRequests = 0,    // other API requests
@@ -17,4 +26,4 @@ registerService("cloudwatch", async (page, config) => {
     const apiInput = page.getByRole("textbox", { name: /Number of other API requests/ });
     await apiInput.fill(String(apiRequests));
   }
-});
+}

@@ -1,10 +1,25 @@
-import { registerService } from "../calculator.js";
+export const id = "s3-vectors";
+
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    numberOfIndexes: params.number_of_indexes,
+    vectorsPerIndex: params.vectors_per_index,
+    vectorDimensions: params.vector_dimensions,
+    filterableMetadataKB: params.filterable_metadata_kb,
+    nonFilterableMetadataKB: params.non_filterable_metadata_kb,
+    keySizeKB: params.key_size_kb,
+    percentOverwrittenPerMonth: params.percent_overwritten_per_month,
+    totalQueriesPerMonth: params.total_queries_per_month,
+  };
+}
 
 // Amazon S3 Vectors
 // S3 Vectors is a sub-checkbox inside the "Amazon Simple Storage Service (S3)"
 // service form. Defaults (S3 Standard + Data Transfer) are checked — we
 // uncheck them and enable only S3 Vectors.
-registerService("s3-vectors", async (page, config) => {
+export async function handler(page, config) {
   const {
     numberOfIndexes = 1,
     vectorsPerIndex = 120000,
@@ -48,4 +63,4 @@ registerService("s3-vectors", async (page, config) => {
 
   await page.keyboard.press("Tab");
   await page.waitForTimeout(500);
-});
+}

@@ -1,4 +1,14 @@
-import { registerService } from "../calculator.js";
+export const id = "secrets-manager";
+
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    numberOfSecrets: params.number_of_secrets,
+    avgSecretDurationDays: params.avg_secret_duration_days,
+    apiCallsPerMonth: params.api_calls_per_month,
+  };
+}
 
 // calculator.aws caps the "Average duration of each secret" at 30.42 days
 // (one month). For longer durations we have to switch the unit dropdown
@@ -33,7 +43,7 @@ async function trySwitchUnitToMonths(page) {
   return false;
 }
 
-registerService("secrets-manager", async (page, config) => {
+export async function handler(page, config) {
   const {
     numberOfSecrets = 0,
     avgSecretDurationDays = 30,
@@ -76,4 +86,4 @@ registerService("secrets-manager", async (page, config) => {
 
   await page.keyboard.press("Tab");
   await page.waitForTimeout(500);
-});
+}

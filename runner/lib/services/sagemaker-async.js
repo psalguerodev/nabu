@@ -1,4 +1,20 @@
-import { registerService } from "../calculator.js";
+export const id = "sagemaker-async";
+
+// Translate the catalog's snake_case params into the camelCase config
+// the Playwright handler below consumes. Keep this pure — no I/O.
+export function adapter(params) {
+  return {
+    modelsDeployed: params.models_deployed,
+    modelsPerEndpoint: params.models_per_endpoint,
+    instancesPerEndpoint: params.instances_per_endpoint,
+    hoursPerDay: params.hours_per_day,
+    daysPerMonth: params.days_per_month,
+    instanceType: params.instance_type,
+    storageAmountGB: params.storage_amount_gb,
+    dataInGB: params.data_in_gb,
+    dataOutGB: params.data_out_gb,
+  };
+}
 
 // SageMaker Asynchronous Inference
 //
@@ -11,7 +27,7 @@ import { registerService } from "../calculator.js";
 // that intercepts pointer events — Playwright's normal `.click()` and even
 // `.click({ force: true })` on the role-based locator do not fire the React
 // onChange. The only reliable path is `input.click()` via page.evaluate.
-registerService("sagemaker-async", async (page, config) => {
+export async function handler(page, config) {
   const {
     modelsDeployed = 1,
     modelsPerEndpoint = 1,
@@ -78,4 +94,4 @@ registerService("sagemaker-async", async (page, config) => {
   // Commit last field
   await page.keyboard.press("Tab");
   await page.waitForTimeout(800);
-});
+}
