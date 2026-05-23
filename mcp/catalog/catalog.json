@@ -1,23 +1,59 @@
 {
   "version": "0.1.0",
   "services": {
-    "ec2": {
+    "api-gateway": {
       "handler_version": "0.0.0",
-      "schema_ref": "schemas/ec2.js",
+      "schema_ref": "schemas/api-gateway.js",
       "status": "schema-only",
-      "tags": ["compute", "core"]
+      "tags": ["networking", "serverless"]
     },
-    "s3": {
+    "appsync": {
       "handler_version": "0.0.0",
-      "schema_ref": "schemas/s3.js",
+      "schema_ref": "schemas/appsync.js",
       "status": "schema-only",
-      "tags": ["storage", "core"]
+      "tags": ["networking", "serverless"]
     },
-    "lambda": {
+    "athena": {
       "handler_version": "0.0.0",
-      "schema_ref": "schemas/lambda.js",
+      "schema_ref": "schemas/athena.js",
       "status": "schema-only",
-      "tags": ["compute", "serverless"]
+      "tags": ["analytics", "data"]
+    },
+    "bedrock": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/bedrock.js",
+      "status": "schema-only",
+      "tags": ["ai", "ml"]
+    },
+    "bedrock-agentcore": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/bedrock-agentcore.js",
+      "status": "schema-only",
+      "tags": ["ai", "agents"]
+    },
+    "cloudfront": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/cloudfront.js",
+      "status": "schema-only",
+      "tags": ["networking", "cdn"]
+    },
+    "cloudtrail": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/cloudtrail.js",
+      "status": "schema-only",
+      "tags": ["security", "audit"]
+    },
+    "cloudwatch": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/cloudwatch.js",
+      "status": "schema-only",
+      "tags": ["monitoring", "observability"]
+    },
+    "cognito": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/cognito.js",
+      "status": "schema-only",
+      "tags": ["security", "identity"]
     },
     "dynamodb": {
       "handler_version": "0.0.0",
@@ -25,17 +61,101 @@
       "status": "schema-only",
       "tags": ["database", "nosql"]
     },
-    "api-gateway": {
+    "ec2": {
       "handler_version": "0.0.0",
-      "schema_ref": "schemas/api-gateway.js",
+      "schema_ref": "schemas/ec2.js",
       "status": "schema-only",
-      "tags": ["networking", "serverless"]
+      "tags": ["compute", "core"]
     },
-    "cloudfront": {
+    "ecr": {
       "handler_version": "0.0.0",
-      "schema_ref": "schemas/cloudfront.js",
+      "schema_ref": "schemas/ecr.js",
       "status": "schema-only",
-      "tags": ["networking", "cdn"]
+      "tags": ["containers", "storage"]
+    },
+    "eventbridge": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/eventbridge.js",
+      "status": "schema-only",
+      "tags": ["events", "serverless"]
+    },
+    "glue": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/glue.js",
+      "status": "schema-only",
+      "tags": ["data", "etl"]
+    },
+    "lambda": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/lambda.js",
+      "status": "schema-only",
+      "tags": ["compute", "serverless"]
+    },
+    "redshift": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/redshift.js",
+      "status": "schema-only",
+      "tags": ["analytics", "data-warehouse"]
+    },
+    "s3": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/s3.js",
+      "status": "schema-only",
+      "tags": ["storage", "core"]
+    },
+    "s3-vectors": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/s3-vectors.js",
+      "status": "schema-only",
+      "tags": ["ai", "vector-search", "storage"]
+    },
+    "sagemaker-async": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/sagemaker-async.js",
+      "status": "schema-only",
+      "tags": ["ai", "ml"]
+    },
+    "secrets-manager": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/secrets-manager.js",
+      "status": "schema-only",
+      "tags": ["security", "secrets"]
+    },
+    "step-functions": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/step-functions.js",
+      "status": "schema-only",
+      "tags": ["orchestration", "serverless"]
+    },
+    "systems-manager": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/systems-manager.js",
+      "status": "schema-only",
+      "tags": ["management", "devops"]
+    },
+    "textract": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/textract.js",
+      "status": "schema-only",
+      "tags": ["ai", "document"]
+    },
+    "vpn": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/vpn.js",
+      "status": "schema-only",
+      "tags": ["networking", "security"]
+    },
+    "waf": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/waf.js",
+      "status": "schema-only",
+      "tags": ["security", "networking"]
+    },
+    "xray": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/xray.js",
+      "status": "schema-only",
+      "tags": ["monitoring", "observability"]
     }
   }
 }

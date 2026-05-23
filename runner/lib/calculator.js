@@ -10,7 +10,7 @@ const BLOCKED_URL_PATTERNS = [
 ];
 
 export async function createEstimate(services, options = {}) {
-  const { headless = true, slowMo = 0, name = null } = options;
+  const { headless = true, slowMo = 0, name = null, onProgress = () => {} } = options;
 
   const browser = await chromium.launch({ headless, slowMo });
   const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
@@ -63,7 +63,7 @@ export async function createEstimate(services, options = {}) {
           } else {
             await page.goto(CALCULATOR_URL, { waitUntil: "networkidle", timeout: 60000 });
           }
-          await page.locator("text=Estimate summary").waitFor({ timeout: 15000 });
+          await page.locator("text=Estimate summary").waitFor({ timeout: 45000 });
           state = "summary";
         }
 
@@ -109,12 +109,29 @@ export async function createEstimate(services, options = {}) {
         page.getByRole("button", { name: "Save and view summary" }).waitFor({ timeout: 20000 }),
       ]);
 
+      onProgress({
+        type: "service_start",
+        index: i,
+        total: services.length,
+        service: svc.service,
+      });
+
       if (svc.region) {
         await setRegion(page, svc.region);
       }
 
       const handler = getServiceHandler(svc.service);
-      await handler(page, svc);
+      try {
+        await handler(page, svc);
+      } catch (err) {
+        onProgress({
+          type: "service_error",
+          service: svc.service,
+          message: err.message ?? String(err),
+        });
+        throw err;
+      }
+      onProgress({ type: "service_done", service: svc.service });
 
       // --- SAVE ---
 
@@ -123,7 +140,7 @@ export async function createEstimate(services, options = {}) {
 
       if (isLast) {
         await clickVisible(page, "Save and view summary");
-        await page.locator("text=Estimate summary").waitFor({ timeout: 15000 });
+        await page.locator("text=Estimate summary").waitFor({ timeout: 45000 });
         state = "summary";
       } else if (nextIsSameGroup) {
         // Same group next: save and stay on Add Service page
@@ -134,7 +151,7 @@ export async function createEstimate(services, options = {}) {
       } else {
         // Different group next: save and go back to summary
         await clickVisible(page, "Save and view summary");
-        await page.locator("text=Estimate summary").waitFor({ timeout: 15000 });
+        await page.locator("text=Estimate summary").waitFor({ timeout: 45000 });
         state = "summary";
       }
     }

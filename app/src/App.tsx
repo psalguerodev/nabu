@@ -636,10 +636,37 @@ function SettingsPanel() {
   );
 }
 
+type JsonSchemaProperty = {
+  type?: string | string[];
+  description?: string;
+  default?: unknown;
+  enum?: unknown[];
+  minimum?: number;
+  maximum?: number;
+  minLength?: number;
+};
+
+type JsonSchema = {
+  type?: string;
+  properties?: Record<string, JsonSchemaProperty>;
+  required?: string[];
+  additionalProperties?: boolean;
+};
+
+type ServiceDetail = {
+  name: string;
+  meta: { status?: string; tags?: string[]; handler_version?: string };
+  schema: JsonSchema;
+};
+
 function ServicesPanel({ mcpUp }: { mcpUp: boolean }) {
   const [services, setServices] = useState<CatalogService[] | null>(null);
   const [catalogVersion, setCatalogVersion] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [selectedName, setSelectedName] = useState<string | null>(null);
+  const [detail, setDetail] = useState<ServiceDetail | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!mcpUp) return;
@@ -663,6 +690,29 @@ function ServicesPanel({ mcpUp }: { mcpUp: boolean }) {
     };
   }, [mcpUp]);
 
+  useEffect(() => {
+    if (!selectedName) {
+      setDetail(null);
+      return;
+    }
+    let cancelled = false;
+    setDetail(null);
+    setDetailError(null);
+    (async () => {
+      try {
+        const res = await fetch(`${SERVICES_URL}/${selectedName}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = (await res.json()) as ServiceDetail;
+        if (!cancelled) setDetail(body);
+      } catch (err) {
+        if (!cancelled) setDetailError((err as Error).message);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedName]);
+
   if (!mcpUp) {
     return (
       <section className="card">
@@ -684,31 +734,197 @@ function ServicesPanel({ mcpUp }: { mcpUp: boolean }) {
       </section>
     );
   }
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? services.filter(
+        (s) =>
+          s.name.includes(q) ||
+          (s.tags ?? []).some((t) => t.toLowerCase().includes(q)),
+      )
+    : services;
+
   return (
     <>
-      <p className="catalog-meta">
-        Catalog version <strong>{catalogVersion}</strong> · {services.length}{" "}
-        services
-      </p>
-      <ul className="service-list">
-        {services.map((s) => (
-          <li key={s.name} className="service-row">
-            <div className="service-row__main">
-              <span className="service-row__name">{s.name}</span>
-              <span className="service-row__status">{s.status}</span>
-            </div>
-            <div className="service-row__tags">
-              {(s.tags ?? []).map((t) => (
-                <span key={t} className="tag">
-                  {t}
-                </span>
-              ))}
-            </div>
-          </li>
-        ))}
-      </ul>
+      <div className="services-toolbar">
+        <input
+          type="search"
+          className="services-search"
+          placeholder={`Search ${services.length} services…`}
+          value={query}
+          onChange={(e) => setQuery(e.currentTarget.value)}
+        />
+        <span className="catalog-meta">
+          catalog <strong>{catalogVersion}</strong> · showing {filtered.length}
+          /{services.length}
+        </span>
+      </div>
+
+      <div className="services-layout">
+        <ul className="services-list">
+          {filtered.length === 0 && (
+            <li className="placeholder services-empty">No matches.</li>
+          )}
+          {filtered.map((s) => (
+            <li
+              key={s.name}
+              className={`services-list__item ${s.name === selectedName ? "services-list__item--active" : ""}`}
+              onClick={() => setSelectedName(s.name)}
+            >
+              <div className="services-list__head">
+                <span className="services-list__name">{s.name}</span>
+                <span className="services-list__status">{s.status}</span>
+              </div>
+              <div className="services-list__tags">
+                {(s.tags ?? []).map((t) => (
+                  <span key={t} className="tag">
+                    {t}
+                  </span>
+                ))}
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <ServiceDetailView
+          detail={detail}
+          error={detailError}
+          placeholder={!selectedName}
+        />
+      </div>
     </>
   );
+}
+
+function ServiceDetailView({
+  detail,
+  error,
+  placeholder,
+}: {
+  detail: ServiceDetail | null;
+  error: string | null;
+  placeholder: boolean;
+}) {
+  const [showRaw, setShowRaw] = useState(false);
+
+  if (placeholder) {
+    return (
+      <section className="card services-detail">
+        <p className="placeholder">
+          Select a service to see the parameters it accepts.
+        </p>
+      </section>
+    );
+  }
+  if (error) {
+    return (
+      <section className="card services-detail">
+        <p className="error-text">Failed: {error}</p>
+      </section>
+    );
+  }
+  if (!detail) {
+    return (
+      <section className="card services-detail">
+        <p className="placeholder">Loading…</p>
+      </section>
+    );
+  }
+
+  const requiredSet = new Set(detail.schema.required ?? []);
+  const allProps = Object.entries(detail.schema.properties ?? {});
+  const requiredProps = allProps.filter(([k]) => requiredSet.has(k));
+  const optionalProps = allProps.filter(([k]) => !requiredSet.has(k));
+
+  return (
+    <section className="card services-detail">
+      <header className="services-detail__header">
+        <div>
+          <div className="eyebrow">{detail.meta.status ?? "schema"}</div>
+          <h2>{detail.name}</h2>
+        </div>
+        <div className="service-row__tags">
+          {(detail.meta.tags ?? []).map((t) => (
+            <span key={t} className="tag">
+              {t}
+            </span>
+          ))}
+        </div>
+      </header>
+
+      {requiredProps.length > 0 && (
+        <PropsTable label="Required" entries={requiredProps} required />
+      )}
+      {optionalProps.length > 0 && (
+        <PropsTable label="Optional" entries={optionalProps} />
+      )}
+
+      <button
+        className="btn services-detail__raw-toggle"
+        onClick={() => setShowRaw((v) => !v)}
+      >
+        {showRaw ? "Hide" : "Show"} raw JSON Schema
+      </button>
+      {showRaw && (
+        <pre className="services-detail__raw">
+          {JSON.stringify(detail.schema, null, 2)}
+        </pre>
+      )}
+    </section>
+  );
+}
+
+function PropsTable({
+  label,
+  entries,
+  required,
+}: {
+  label: string;
+  entries: [string, JsonSchemaProperty][];
+  required?: boolean;
+}) {
+  return (
+    <div className="props-block">
+      <div className="eyebrow">{label}</div>
+      <table className="props-table">
+        <thead>
+          <tr>
+            <th>field</th>
+            <th>type</th>
+            <th>{required ? "" : "default"}</th>
+            <th>description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map(([name, prop]) => (
+            <tr key={name}>
+              <td className="props-table__name">{name}</td>
+              <td className="props-table__type">{formatType(prop)}</td>
+              <td className="props-table__default">
+                {required
+                  ? null
+                  : prop.default !== undefined
+                    ? String(prop.default)
+                    : "—"}
+              </td>
+              <td className="props-table__desc">{prop.description ?? null}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function formatType(prop: JsonSchemaProperty): string {
+  if (prop.enum) return prop.enum.map((v) => String(v)).join(" | ");
+  if (Array.isArray(prop.type)) return prop.type.join(" | ");
+  const t = prop.type ?? "any";
+  const bounds: string[] = [];
+  if (prop.minimum != null) bounds.push(`≥ ${prop.minimum}`);
+  if (prop.maximum != null) bounds.push(`≤ ${prop.maximum}`);
+  if (prop.minLength != null) bounds.push(`len ≥ ${prop.minLength}`);
+  return bounds.length ? `${t} (${bounds.join(", ")})` : t;
 }
 
 function renderStatus(s: McpStatus): string {

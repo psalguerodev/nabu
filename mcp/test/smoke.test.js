@@ -35,13 +35,33 @@ test("list_supported_services returns the services defined in the catalog", asyn
     const payload = JSON.parse(res.content[0].text);
     assert.deepEqual(payload.services, [
       "api-gateway",
+      "appsync",
+      "athena",
+      "bedrock",
+      "bedrock-agentcore",
       "cloudfront",
+      "cloudtrail",
+      "cloudwatch",
+      "cognito",
       "dynamodb",
       "ec2",
+      "ecr",
+      "eventbridge",
+      "glue",
       "lambda",
+      "redshift",
       "s3",
+      "s3-vectors",
+      "sagemaker-async",
+      "secrets-manager",
+      "step-functions",
+      "systems-manager",
+      "textract",
+      "vpn",
+      "waf",
+      "xray",
     ]);
-    assert.equal(payload.count, 6);
+    assert.equal(payload.count, 26);
     assert.equal(payload.catalog_version, "0.1.0");
   } finally {
     await transport.close();

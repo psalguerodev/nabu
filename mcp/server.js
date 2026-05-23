@@ -97,6 +97,24 @@ export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
       res.end(JSON.stringify({ catalog_version: catalogVersion, services }));
       return;
     }
+    const svcMatch = req.url?.match(/^\/services\/([a-z0-9-]+)$/);
+    if (svcMatch && req.method === "GET") {
+      const entry = catalog.get(svcMatch[1]);
+      if (!entry) {
+        res.writeHead(404, { ...cors, "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "not_found" }));
+        return;
+      }
+      res.writeHead(200, { ...cors, "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          name: entry.name,
+          meta: entry.meta,
+          schema: entry.jsonSchema,
+        }),
+      );
+      return;
+    }
     if (req.url === "/jobs" && req.method === "GET") {
       const jobs = listJobs(50);
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
