@@ -67,11 +67,32 @@ function sha256File(path) {
   );
 }
 
-async function fetchToFile(url, dest) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`GET ${url} -> HTTP ${res.status}`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  await writeFile(dest, buf);
+async function fetchToFile(url, dest, { retries = 4 } = {}) {
+  let lastErr;
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const res = await fetch(url, { redirect: "follow" });
+      if (res.ok) {
+        const buf = Buffer.from(await res.arrayBuffer());
+        await writeFile(dest, buf);
+        return;
+      }
+      // Retry transient GitHub CDN failures (5xx, 429); fail fast on
+      // anything else.
+      if (res.status >= 500 || res.status === 429) {
+        lastErr = new Error(`GET ${url} -> HTTP ${res.status}`);
+      } else {
+        throw new Error(`GET ${url} -> HTTP ${res.status}`);
+      }
+    } catch (err) {
+      lastErr = err;
+    }
+    if (i < retries) {
+      const delay = Math.min(8000, 500 * 2 ** i);
+      await new Promise((r) => setTimeout(r, delay));
+    }
+  }
+  throw lastErr;
 }
 
 async function installRelease({ base_url, tarball_url }) {
