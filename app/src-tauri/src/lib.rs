@@ -8,13 +8,15 @@ const MCP_SERVER_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../mcp/se
 const MCP_PORT: u16 = 7531;
 const DB_FILE: &str = "nabu.db";
 const SETTINGS_DB_URL: &str = "sqlite:nabu.db";
+const REMOTE_CATALOG_DIR: &str = "remote-catalog";
 
 struct McpProcess(Mutex<Option<Child>>);
 
-fn spawn_mcp(db_path: &PathBuf) -> std::io::Result<Child> {
+fn spawn_mcp(db_path: &PathBuf, remote_dir: &PathBuf) -> std::io::Result<Child> {
     Command::new("node")
         .args([MCP_SERVER_PATH, "--http", &format!("--port={MCP_PORT}")])
         .env("NABU_DB_PATH", db_path)
+        .env("NABU_REMOTE_CATALOG_DIR", remote_dir)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
@@ -48,8 +50,10 @@ pub fn run() {
                 .expect("no app_config_dir available");
             std::fs::create_dir_all(&data_dir).ok();
             let db_path = data_dir.join(DB_FILE);
+            let remote_dir = data_dir.join(REMOTE_CATALOG_DIR);
+            std::fs::create_dir_all(&remote_dir).ok();
 
-            let child = spawn_mcp(&db_path)
+            let child = spawn_mcp(&db_path, &remote_dir)
                 .expect("failed to spawn Nabu MCP sidecar (is `node` on PATH?)");
             app.manage(McpProcess(Mutex::new(Some(child))));
             Ok(())

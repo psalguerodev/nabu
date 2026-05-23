@@ -2,13 +2,14 @@ import { useEffect, useState } from "react";
 import "./App.css";
 import { loadSettings, saveSetting, type Settings } from "./settings";
 
-const TABS = ["Dashboard", "Jobs", "Services", "Settings"] as const;
+const TABS = ["Dashboard", "Jobs", "Services", "Updates", "Settings"] as const;
 type Tab = (typeof TABS)[number];
 
 const EYEBROW: Record<Tab, string> = {
   Dashboard: "Overview",
   Jobs: "Estimate queue",
   Services: "AWS handlers",
+  Updates: "Catalog distribution",
   Settings: "Configuration",
 };
 
@@ -16,6 +17,7 @@ const MCP_BASE = "http://127.0.0.1:7531";
 const HEALTH_URL = `${MCP_BASE}/health`;
 const SERVICES_URL = `${MCP_BASE}/services`;
 const JOBS_URL = `${MCP_BASE}/jobs`;
+const RELOAD_URL = `${MCP_BASE}/reload`;
 const POLL_INTERVAL_MS = 2000;
 
 type McpStatus =
@@ -29,6 +31,7 @@ type CatalogService = {
   status: string;
   tags?: string[];
   schema_ref?: string;
+  source?: "embedded" | "remote";
 };
 
 function useMcpStatus(): McpStatus {
@@ -123,10 +126,163 @@ function TabContent({ tab, status }: { tab: Tab; status: McpStatus }) {
   if (tab === "Services") return <ServicesPanel mcpUp={status.state === "up"} />;
   if (tab === "Settings") return <SettingsPanel />;
   if (tab === "Jobs") return <JobsPanel mcpUp={status.state === "up"} />;
+  if (tab === "Updates") return <UpdatesPanel mcpUp={status.state === "up"} />;
   return (
     <section className="card">
       <p className="placeholder">No content yet.</p>
     </section>
+  );
+}
+
+function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
+  const [services, setServices] = useState<CatalogService[] | null>(null);
+  const [catalogVersion, setCatalogVersion] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [reloading, setReloading] = useState(false);
+  const [lastReload, setLastReload] = useState<string | null>(null);
+
+  const refetch = async () => {
+    try {
+      const res = await fetch(SERVICES_URL);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const body = await res.json();
+      setServices(body.services);
+      setCatalogVersion(body.catalog_version);
+      setError(null);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  };
+
+  useEffect(() => {
+    if (mcpUp) refetch();
+  }, [mcpUp]);
+
+  const reload = async () => {
+    setReloading(true);
+    try {
+      const res = await fetch(RELOAD_URL, { method: "POST" });
+      const body = await res.json();
+      if (!res.ok || !body.ok) {
+        setError(body.error ?? `HTTP ${res.status}`);
+      } else {
+        setLastReload(new Date().toLocaleTimeString());
+        await refetch();
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setReloading(false);
+    }
+  };
+
+  if (!mcpUp) {
+    return (
+      <section className="card">
+        <p className="placeholder">MCP offline — cannot inspect catalog.</p>
+      </section>
+    );
+  }
+  if (error && !services) {
+    return (
+      <section className="card">
+        <p className="error-text">Failed to load: {error}</p>
+      </section>
+    );
+  }
+  if (!services) {
+    return (
+      <section className="card">
+        <p className="placeholder">Loading…</p>
+      </section>
+    );
+  }
+
+  const remote = services.filter((s) => s.source === "remote");
+  const embedded = services.filter((s) => s.source === "embedded");
+
+  return (
+    <>
+      <div className="services-toolbar">
+        <div>
+          <div className="eyebrow">Active catalog</div>
+          <div className="updates-version">{catalogVersion}</div>
+        </div>
+        <div className="updates-actions">
+          {lastReload && (
+            <span className="catalog-meta">last reload {lastReload}</span>
+          )}
+          <button className="btn" onClick={reload} disabled={reloading}>
+            {reloading ? "Reloading…" : "Reload catalog from disk"}
+          </button>
+        </div>
+      </div>
+
+      <section className="card updates-summary">
+        <div>
+          <div className="eyebrow">Remote overlay</div>
+          <p className="updates-stat">
+            <strong>{remote.length}</strong> service
+            {remote.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div>
+          <div className="eyebrow">Embedded</div>
+          <p className="updates-stat">
+            <strong>{embedded.length}</strong> service
+            {embedded.length === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div>
+          <div className="eyebrow">Total active</div>
+          <p className="updates-stat">
+            <strong>{services.length}</strong>
+          </p>
+        </div>
+      </section>
+
+      {remote.length > 0 && (
+        <section className="card">
+          <div className="eyebrow">Active remote overrides</div>
+          <ul className="updates-list">
+            {remote.map((s) => (
+              <li key={s.name}>
+                <span className="updates-list__name">{s.name}</span>
+                <span className="badge badge--succeeded">remote</span>
+                <span className="catalog-meta">
+                  handler v{s.handler_version ?? "?"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="card updates-help">
+        <div className="eyebrow">How to install a new release</div>
+        <ol className="updates-steps">
+          <li>
+            Publish a bundle locally:{" "}
+            <code>pnpm -C mcp release [services]</code>. Output lands in{" "}
+            <code>mcp/dist/release/</code>.
+          </li>
+          <li>
+            Copy the bundle into the app's remote-catalog directory (the
+            same path the MCP was started with via{" "}
+            <code>NABU_REMOTE_CATALOG_DIR</code>).
+          </li>
+          <li>
+            Press <strong>Reload catalog from disk</strong> above. The MCP
+            verifies the Ed25519 signature and per-file sha256, then swaps
+            in the overlay without restarting.
+          </li>
+        </ol>
+        <p className="placeholder">
+          A networked installer ("Check for updates" against GitHub
+          Releases) is coming next.
+        </p>
+      </section>
+    </>
   );
 }
 

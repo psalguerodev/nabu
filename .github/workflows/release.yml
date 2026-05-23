@@ -1,0 +1,90 @@
+name: Release catalog bundle
+
+# Publishes a signed Nabu catalog bundle to a GitHub Release whenever a
+# tag matching `catalog-v*` is pushed (e.g. `catalog-v2026.05.23`).
+#
+# Required secrets:
+#   NABU_RELEASE_PRIVATE_KEY   hex-encoded ed25519 private key matching
+#                              mcp/sign/pubkey.js
+#
+# Manual dispatch is also supported for testing without tagging.
+
+on:
+  push:
+    tags:
+      - "catalog-v*"
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "Space-separated services to include (empty = all)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "pnpm"
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and sign bundle
+        env:
+          NABU_RELEASE_PRIVATE_KEY: ${{ secrets.NABU_RELEASE_PRIVATE_KEY }}
+          SERVICES: ${{ github.event.inputs.services }}
+        run: |
+          if [ -z "$NABU_RELEASE_PRIVATE_KEY" ]; then
+            echo "Missing NABU_RELEASE_PRIVATE_KEY secret." >&2
+            exit 1
+          fi
+          # SERVICES comes from workflow_dispatch input; quoting it as $SERVICES
+          # is fine because the publish script accepts space-separated args.
+          # shellcheck disable=SC2086
+          pnpm -C mcp release $SERVICES
+
+      - name: Show bundle
+        run: |
+          ls -lh mcp/dist/release
+          head -40 mcp/dist/release/latest.json
+
+      - name: Determine release name
+        id: rel
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [[ "$REF_NAME" == catalog-v* ]]; then
+            echo "name=$REF_NAME" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=catalog-manual-$(date +%Y%m%d-%H%M%S)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pack bundle
+        run: |
+          tar -czf mcp/dist/nabu-catalog.tar.gz -C mcp/dist/release .
+
+      - name: Create or update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.rel.outputs.name }}
+          name: ${{ steps.rel.outputs.name }}
+          generate_release_notes: true
+          files: |
+            mcp/dist/release/latest.json
+            mcp/dist/release/latest.json.sig
+            mcp/dist/nabu-catalog.tar.gz
