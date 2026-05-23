@@ -43,19 +43,18 @@ A desktop companion for AWS presales work. It lets a salesperson (or Claude on t
 
 ### Flow C — New service support arrives
 
-1. Nabu polls the remote catalog, finds e.g. `bedrock-agentcore` v1.0.0.
-2. Sidebar shows **Updates •** badge.
-3. User opens Updates tab → sees what's new with changelog and source link → clicks "Install".
-4. Nabu verifies signature + checksum, atomically swaps the catalog, refreshes the MCP tool list.
-5. On the next call, Claude sees `bedrock-agentcore` in `list_supported_services` and can use it.
+1. User opens the **Updates** tab.
+2. They click **Install latest release** (or change the base URL first to point at a private release feed).
+3. The MCP downloads `latest.json`, `latest.json.sig` and `nabu-catalog.tar.gz`, verifies the Ed25519 signature against the embedded pubkey, recomputes per-file SHA-256 against the signed index, atomic-renames the staged directory into `<app_config_dir>/remote-catalog/`, then reloads.
+4. Within a couple of seconds the Updates list reflects the new handler versions (`v0.1.0-<sha>`); the next time Claude lists tools it sees the expanded surface.
 
 ## UI inventory (no terminal)
 
-- **Dashboard**: active jobs, recent runs, success rate, average duration, MCP connection status, catalog version.
-- **Jobs**: paginated table of past and current jobs. Detail view: payload (JSON), step-by-step log, screenshots from key wizard steps, final calculator.aws link, `.xlsx` link, error trace if failed.
-- **Services**: catalog browser. Each service card shows: status (stable / degraded / experimental), supported fields, last validated date, handler version, sample payload.
-- **Settings**: headless on/off, default region, AWS profile (for any future programmatic checks), output directory, MCP port, telemetry off (no telemetry by default).
-- **Updates**: pending catalog updates with changelog and Install action.
+- **Dashboard**: placeholder today; intended to surface active jobs, recent runs, MCP connection status.
+- **Jobs**: list of past and current jobs with checkboxes for bulk delete. Detail view: status badge, created/started/finished timestamps, `Show input JSON` toggle exposing the exact params, calculator.aws link with total monthly, streamed logs, error trace, and a `Retry` button on failed jobs that re-enqueues the same payload with a `(retry)` suffix on the name.
+- **Services**: searchable catalog browser. Each row shows status and tags; the detail panel renders required/optional fields with types, defaults, descriptions, and a "Show raw JSON Schema" toggle. Container query collapses the detail into a stacked card below 560 px.
+- **Updates**: active catalog version, remote/embedded/total counts, `Reload catalog from disk` and `Install latest release` (with a configurable base URL) actions, full list of installed services with their per-handler `v0.1.0-<sha>` version and a `REMOTE`/`embedded` source badge.
+- **Settings**: headless on/off, default region, MCP port (read-only this milestone), plus a **Claude Desktop integration** card that detects the OS, shows the resolved config path, and lets the user install or remove the `nabu` MCP entry from `claude_desktop_config.json` (with a timestamped backup before writing).
 
 ## Estimate payload — current shape (carried from legacy MCP)
 

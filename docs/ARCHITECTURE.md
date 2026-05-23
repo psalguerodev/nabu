@@ -109,6 +109,7 @@ State machine for a job: `queued → running → (succeeded | failed | needs_int
 - `GET /services` — listing with `source: embedded | remote` per entry.
 - `GET /services/:name` — `{ name, meta, schema }` for the schema detail panel.
 - `GET /jobs`, `GET /jobs/:id` — for the Jobs tab.
+- `POST /jobs/:id/retry` — clones a job with the same params/options and a new UUID; the new job's name gets a "(retry)" suffix. Surfaced by the Retry button that appears on failed jobs.
 - `DELETE /jobs/:id`, `DELETE /jobs { ids[] | all }` — used by the delete UI.
 - `POST /reload` — re-imports the catalog from disk; returns `{ ok, version, count }`.
 - `POST /install { base_url | tarball_url }` — downloads `latest.json` + `.sig` + `nabu-catalog.tar.gz`, verifies Ed25519 + SHA-256, atomic-renames into `NABU_REMOTE_CATALOG_DIR`, then reloads.
@@ -124,7 +125,7 @@ The catalog is the single source of truth for what Nabu can estimate. It is vers
   "min_app_version": "0.1.0",
   "services": {
     "ec2": {
-      "handler_version": "0.0.0",
+      "handler_version": "0.1.0-0185d35b",
       "schema_ref": "schemas/ec2.js",
       "handler_ref": "handlers/ec2.js",
       "schema_sha256": "a92c47…",
@@ -154,6 +155,8 @@ The catalog is the single source of truth for what Nabu can estimate. It is vers
 ### Why version handlers individually
 
 Decoupling handler releases from app releases means we can ship "now we support Bedrock AgentCore" on a Tuesday without forcing users to install a new binary. The app stays stable; the catalog is alive.
+
+The publisher derives `handler_version` from the file's SHA-256 prefix (`0.1.0-<first 8 hex chars>`). Re-publishing without changes keeps the version stable; a real edit to the handler produces a fresh version. The embedded catalog ships a `"0.0.0"` placeholder per service — it's only visible until a remote release is installed.
 
 ## Security considerations
 

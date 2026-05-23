@@ -31,7 +31,7 @@ Goal: real Playwright jobs running through the app.
 - [x] Job queue with states `queued | running | succeeded | failed | needs_intervention` persisted to SQLite (`node:sqlite`).
 - [x] Playwright sidecar process spawned per job from the `runner/` package; handlers self-contained and dynamically imported.
 - [x] Tools: `enqueue_estimate_job`, `get_job_status`, `get_job_result`, `list_jobs`. Multi-service estimates supported.
-- [x] **Jobs** tab: live list with checkboxes + bulk delete, detail view with logs streaming, calculator link, total monthly, input JSON toggle, took-Xs duration after completion.
+- [x] **Jobs** tab: live list with checkboxes + bulk delete, detail view with logs streaming, calculator link, total monthly, input JSON toggle, took-Xs duration after completion, and a Retry button that re-enqueues a failed job (`POST /jobs/:id/retry`).
 - [x] Headless toggle (from Settings) flowing through to Playwright launch options.
 - [ ] Deep link handler `nabu://job/<id>` — deferred to Milestone 5 hardening; not blocking.
 
@@ -48,6 +48,8 @@ Goal: ship new service support without app releases.
 - [x] Hot-reload of MCP tools after a catalog swap — no sidecar restart needed.
 - [x] Schemas bundled with esbuild (zod inlined) so installed files load regardless of `node_modules` proximity. Handlers ship as-is because they have zero external imports.
 - [x] GitHub Actions workflow (`.github/workflows/release.yml`) builds and signs the bundle on push of a `catalog-v*` tag.
+- [x] Per-handler `handler_version` derived from the handler's SHA-256 at publish time (`0.1.0-<sha>`), so a re-published release with no code changes keeps the same version and a real edit produces a fresh one.
+- [x] **Settings → Claude Desktop integration**: one-click installer that detects the OS, backs up the existing `claude_desktop_config.json`, and merges in the `nabu` MCP entry.
 
 **Exit met:** one click on "Install latest release" in the running app downloads the latest GitHub Release, verifies its signature, atomically swaps the overlay, reloads the MCP, and Claude immediately sees the new tools.
 

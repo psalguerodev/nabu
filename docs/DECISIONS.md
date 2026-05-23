@@ -81,3 +81,19 @@ This file captures architectural decisions made in conversation, with the reason
 **Why:** A new service is exactly one file. The remote install flow can drop that file into `<app_config_dir>/remote-catalog/handlers/` and it Just Works — `runner/run.js` resolves the handler via the catalog's `handlerPath` and dynamically imports it. Without this refactor, M3 would require shipping changes to `run.js`'s switch statement alongside each new service.
 
 **Tradeoff:** Lost the symmetry with how the legacy MCP worked (handlers self-registered as a side effect). Worth it: discoverability is now driven by the catalog, not by which files happened to be imported.
+
+## D11 — `handler_version` derived from sha256 at publish time
+
+**Decision:** The publisher sets `handler_version = "0.1.0-<sha256[0:8]>"` for every service in a release, computed from the handler file's content hash. The embedded `catalog.json` keeps a placeholder `"0.0.0"` per service.
+
+**Why:** We don't (yet) have a per-handler versioning policy or changelog discipline. A hash-derived version is honest: it changes exactly when the code changes, doesn't lie about ordering, and lets the Updates tab show users that a release actually contains different handlers from the one they have installed. Real semver per handler can layer on top when we need to express "this is a breaking change" — for now content-equality is enough.
+
+**Tradeoff:** No human-readable changelog ordering; two unrelated edits look equally "new". Acceptable while we have a single maintainer.
+
+## D12 — Claude Desktop config installer ships in-app
+
+**Decision:** The Settings tab includes a card that writes the `nabu` entry into `claude_desktop_config.json` automatically (OS-aware path resolution, with a timestamped backup of any existing file). Users do not have to hand-edit JSON.
+
+**Why:** Hand-editing the config is the single most error-prone setup step for new users. Wrong path per OS, JSON syntax errors, accidentally clobbering other MCP servers, forgetting an absolute path — all things we can do correctly once in code.
+
+**Tradeoff:** The Tauri side gains a small fs/JSON dependency for this single feature. Reads are gated by a Tauri command; the webview never gets raw fs access.

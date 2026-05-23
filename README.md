@@ -77,7 +77,7 @@ Users install a release with a single click on the **Updates** tab in the app, o
 
 ## Wire it into Claude Desktop
 
-The bridge package is published as `@arkho/nabu-bridge` (local workspace today; npm-published later). For local dev:
+The app does it for you: open the **Settings** tab, find the *Claude Desktop integration* card, click **Install into Claude Desktop**. The Tauri side detects the OS, resolves the right config path (`~/Library/Application Support/Claude/`, `%APPDATA%/Claude/`, or `$XDG_CONFIG_HOME/Claude/`), backs up any existing config to `claude_desktop_config.json.bak.<unix_ts>`, and merges in:
 
 ```json
 {
@@ -90,7 +90,7 @@ The bridge package is published as `@arkho/nabu-bridge` (local workspace today; 
 }
 ```
 
-The bridge proxies stdio JSON-RPC to the HTTP MCP on `127.0.0.1:7531`.
+Restart Claude Desktop afterwards. The bridge proxies stdio JSON-RPC to the HTTP MCP on `127.0.0.1:7531`. Removing the entry later is a one-click action on the same card.
 
 ## Git hooks
 
