@@ -46,6 +46,14 @@ Wire it into Claude Desktop:
 }
 ```
 
+## Git hooks
+
+This repo ships a versioned `.githooks/pre-commit` that runs `pnpm -C mcp test` whenever something under `mcp/` is staged. Activate it once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
 ## License
 
 Apache-2.0 (see `LICENSE`).

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Only run MCP tests if something under mcp/ is staged.
+if git diff --cached --name-only --diff-filter=ACMR | grep -q '^mcp/'; then
+  echo "[pre-commit] mcp/ changes detected, running pnpm -C mcp test"
+  pnpm -C mcp test
+fi
