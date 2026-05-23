@@ -28,17 +28,14 @@ test("MCP advertises list_supported_services tool", async () => {
   }
 });
 
-test("list_supported_services returns the handlers from playwright/lib/services", async () => {
+test("list_supported_services returns the services defined in the catalog", async () => {
   const { client, transport } = await connect();
   try {
     const res = await client.callTool({ name: "list_supported_services", arguments: {} });
     const payload = JSON.parse(res.content[0].text);
-    assert.ok(payload.count > 0, "expected at least one service");
-    assert.equal(payload.count, payload.services.length);
-    assert.ok(payload.services.includes("ec2"));
-    assert.ok(payload.services.includes("lambda"));
-    const sorted = [...payload.services].sort();
-    assert.deepEqual(payload.services, sorted, "services must be sorted");
+    assert.deepEqual(payload.services, ["ec2", "lambda", "s3"]);
+    assert.equal(payload.count, 3);
+    assert.equal(payload.catalog_version, "0.1.0");
   } finally {
     await transport.close();
   }

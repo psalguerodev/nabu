@@ -1,22 +1,4 @@
-import { readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-export const HANDLERS_DIR = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "..",
-  "..",
-  "playwright",
-  "lib",
-  "services",
-);
-
-export function listServices(dir = HANDLERS_DIR) {
-  return readdirSync(dir)
-    .filter((f) => f.endsWith(".js"))
-    .map((f) => f.replace(/\.js$/, ""))
-    .sort();
-}
+import { catalogVersion, listCatalogServices } from "../catalog/index.js";
 
 export const definition = {
   name: "list_supported_services",
@@ -25,12 +7,20 @@ export const definition = {
 };
 
 export async function handler() {
-  const services = listServices();
+  const services = listCatalogServices();
   return {
     content: [
       {
         type: "text",
-        text: JSON.stringify({ count: services.length, services }, null, 2),
+        text: JSON.stringify(
+          {
+            count: services.length,
+            services,
+            catalog_version: catalogVersion,
+          },
+          null,
+          2,
+        ),
       },
     ],
   };

@@ -1,0 +1,23 @@
+{
+  "version": "0.1.0",
+  "services": {
+    "ec2": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/ec2.js",
+      "status": "schema-only",
+      "tags": ["compute", "core"]
+    },
+    "s3": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/s3.js",
+      "status": "schema-only",
+      "tags": ["storage", "core"]
+    },
+    "lambda": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/lambda.js",
+      "status": "schema-only",
+      "tags": ["compute", "serverless"]
+    }
+  }
+}

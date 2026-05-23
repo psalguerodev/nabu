@@ -11,8 +11,7 @@ import { randomUUID } from "node:crypto";
 
 import { tools, registry } from "./tools/index.js";
 import { SERVER_NAME, SERVER_VERSION } from "./tools/get-version.js";
-
-export { listServices, HANDLERS_DIR } from "./tools/list-services.js";
+import { catalog, catalogVersion, listCatalogServices } from "./catalog/index.js";
 
 export function createServer() {
   const server = new Server(
@@ -56,8 +55,22 @@ export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
     if (req.url === "/health" && req.method === "GET") {
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
       res.end(
-        JSON.stringify({ ok: true, name: SERVER_NAME, version: SERVER_VERSION }),
+        JSON.stringify({
+          ok: true,
+          name: SERVER_NAME,
+          version: SERVER_VERSION,
+          catalog_version: catalogVersion,
+        }),
       );
+      return;
+    }
+    if (req.url === "/services" && req.method === "GET") {
+      const services = listCatalogServices().map((name) => {
+        const e = catalog.get(name);
+        return { name, ...e.meta };
+      });
+      res.writeHead(200, { ...cors, "Content-Type": "application/json" });
+      res.end(JSON.stringify({ catalog_version: catalogVersion, services }));
       return;
     }
     if (req.url !== "/mcp") {
