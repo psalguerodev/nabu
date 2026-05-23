@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use tauri::Manager;
@@ -5,13 +6,15 @@ use tauri_plugin_sql::{Migration, MigrationKind};
 
 const MCP_SERVER_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../mcp/server.js");
 const MCP_PORT: u16 = 7531;
-const SETTINGS_DB: &str = "sqlite:nabu.db";
+const DB_FILE: &str = "nabu.db";
+const SETTINGS_DB_URL: &str = "sqlite:nabu.db";
 
 struct McpProcess(Mutex<Option<Child>>);
 
-fn spawn_mcp() -> std::io::Result<Child> {
+fn spawn_mcp(db_path: &PathBuf) -> std::io::Result<Child> {
     Command::new("node")
         .args([MCP_SERVER_PATH, "--http", &format!("--port={MCP_PORT}")])
+        .env("NABU_DB_PATH", db_path)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .spawn()
@@ -35,11 +38,18 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(
             tauri_plugin_sql::Builder::default()
-                .add_migrations(SETTINGS_DB, migrations())
+                .add_migrations(SETTINGS_DB_URL, migrations())
                 .build(),
         )
         .setup(|app| {
-            let child = spawn_mcp()
+            let data_dir = app
+                .path()
+                .app_config_dir()
+                .expect("no app_config_dir available");
+            std::fs::create_dir_all(&data_dir).ok();
+            let db_path = data_dir.join(DB_FILE);
+
+            let child = spawn_mcp(&db_path)
                 .expect("failed to spawn Nabu MCP sidecar (is `node` on PATH?)");
             app.manage(McpProcess(Mutex::new(Some(child))));
             Ok(())

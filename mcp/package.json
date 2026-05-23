@@ -6,6 +6,9 @@
   "bin": {
     "nabu-mcp": "./server.js"
   },
+  "engines": {
+    "node": ">=22.5"
+  },
   "scripts": {
     "start": "node server.js",
     "start:http": "node server.js --http",

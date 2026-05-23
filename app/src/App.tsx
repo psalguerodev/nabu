@@ -15,6 +15,7 @@ const EYEBROW: Record<Tab, string> = {
 const MCP_BASE = "http://127.0.0.1:7531";
 const HEALTH_URL = `${MCP_BASE}/health`;
 const SERVICES_URL = `${MCP_BASE}/services`;
+const JOBS_URL = `${MCP_BASE}/jobs`;
 const POLL_INTERVAL_MS = 2000;
 
 type McpStatus =
@@ -119,11 +120,252 @@ export default function App() {
 function TabContent({ tab, status }: { tab: Tab; status: McpStatus }) {
   if (tab === "Services") return <ServicesPanel mcpUp={status.state === "up"} />;
   if (tab === "Settings") return <SettingsPanel />;
+  if (tab === "Jobs") return <JobsPanel mcpUp={status.state === "up"} />;
   return (
     <section className="card">
       <p className="placeholder">No content yet.</p>
     </section>
   );
+}
+
+type JobSummary = {
+  id: string;
+  service: string;
+  status: string;
+  created_at: number;
+  started_at: number | null;
+  finished_at: number | null;
+  error: string | null;
+};
+
+type JobLog = { ts: number; level: string; message: string };
+
+type JobDetail = JobSummary & {
+  params: Record<string, unknown>;
+  options: Record<string, unknown> | null;
+  logs: JobLog[];
+  result: {
+    calculator_url: string | null;
+    line_items: Array<Record<string, unknown>> | null;
+    total_monthly: number | null;
+    xlsx_path: string | null;
+  } | null;
+};
+
+function JobsPanel({ mcpUp }: { mcpUp: boolean }) {
+  const [jobs, setJobs] = useState<JobSummary[] | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<JobDetail | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!mcpUp) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await fetch(JOBS_URL);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = await res.json();
+        if (!cancelled) {
+          setJobs(body.jobs);
+          setError(null);
+        }
+      } catch (e) {
+        if (!cancelled) setError((e as Error).message);
+      }
+    };
+    tick();
+    const id = setInterval(tick, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [mcpUp]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setDetail(null);
+      return;
+    }
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const res = await fetch(`${JOBS_URL}/${selectedId}`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const body = (await res.json()) as JobDetail;
+        if (!cancelled) setDetail(body);
+      } catch {
+        // swallow; outer error display handled by list
+      }
+    };
+    tick();
+    const id = setInterval(tick, POLL_INTERVAL_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [selectedId]);
+
+  if (!mcpUp) {
+    return (
+      <section className="card">
+        <p className="placeholder">MCP offline — cannot load jobs.</p>
+      </section>
+    );
+  }
+  if (error && !jobs) {
+    return (
+      <section className="card">
+        <p className="placeholder">Failed to load: {error}</p>
+      </section>
+    );
+  }
+  if (!jobs) {
+    return (
+      <section className="card">
+        <p className="placeholder">Loading…</p>
+      </section>
+    );
+  }
+  if (jobs.length === 0) {
+    return (
+      <section className="card">
+        <p className="placeholder">
+          No jobs yet. Enqueue one via Claude using{" "}
+          <code>enqueue_estimate_job</code>.
+        </p>
+      </section>
+    );
+  }
+  return (
+    <div className="jobs-layout">
+      <ul className="jobs-list">
+        {jobs.map((j) => (
+          <li
+            key={j.id}
+            className={`jobs-item ${j.id === selectedId ? "jobs-item--active" : ""}`}
+            onClick={() => setSelectedId(j.id)}
+          >
+            <div className="jobs-item__top">
+              <span className="jobs-item__service">{j.service}</span>
+              <StatusBadge status={j.status} />
+            </div>
+            <div className="jobs-item__id">
+              {j.id.slice(0, 8)} · {formatRelative(j.created_at)}
+            </div>
+          </li>
+        ))}
+      </ul>
+      <JobDetailView detail={detail} placeholder={!selectedId} />
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  return <span className={`badge badge--${status}`}>{status}</span>;
+}
+
+function JobDetailView({
+  detail,
+  placeholder,
+}: {
+  detail: JobDetail | null;
+  placeholder: boolean;
+}) {
+  if (placeholder) {
+    return (
+      <section className="card jobs-detail">
+        <p className="placeholder">Select a job to see logs and result.</p>
+      </section>
+    );
+  }
+  if (!detail) {
+    return (
+      <section className="card jobs-detail">
+        <p className="placeholder">Loading…</p>
+      </section>
+    );
+  }
+  return (
+    <section className="card jobs-detail">
+      <header className="jobs-detail__header">
+        <div>
+          <div className="content-eyebrow">{detail.service}</div>
+          <h2>{detail.id.slice(0, 8)}</h2>
+        </div>
+        <StatusBadge status={detail.status} />
+      </header>
+
+      <dl className="jobs-detail__meta">
+        <div>
+          <dt>created</dt>
+          <dd>{formatAbs(detail.created_at)}</dd>
+        </div>
+        {detail.started_at && (
+          <div>
+            <dt>started</dt>
+            <dd>{formatAbs(detail.started_at)}</dd>
+          </div>
+        )}
+        {detail.finished_at && (
+          <div>
+            <dt>finished</dt>
+            <dd>{formatAbs(detail.finished_at)}</dd>
+          </div>
+        )}
+      </dl>
+
+      {detail.error && <pre className="jobs-error">{detail.error}</pre>}
+
+      {detail.result?.calculator_url && (
+        <div className="jobs-result">
+          <div className="content-eyebrow">Result</div>
+          <p>
+            <a
+              href={detail.result.calculator_url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {detail.result.calculator_url}
+            </a>
+          </p>
+          {detail.result.total_monthly != null && (
+            <p className="jobs-result__total">
+              Total monthly: <strong>${detail.result.total_monthly}</strong>
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="content-eyebrow jobs-logs-label">Logs</div>
+      <ol className="jobs-logs">
+        {detail.logs.map((l, i) => (
+          <li key={i}>
+            <span className="jobs-log__ts">{formatTime(l.ts)}</span>
+            <span className={`jobs-log__level jobs-log__level--${l.level}`}>
+              {l.level}
+            </span>
+            <span>{l.message}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function formatRelative(ts: number): string {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ago`;
+}
+
+function formatAbs(ts: number): string {
+  return new Date(ts).toLocaleString();
+}
+
+function formatTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString();
 }
 
 function SettingsPanel() {

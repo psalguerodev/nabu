@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import { tools, registry } from "./tools/index.js";
 import { SERVER_NAME, SERVER_VERSION } from "./tools/get-version.js";
 import { catalog, catalogVersion, listCatalogServices } from "./catalog/index.js";
+import { getJobDetail, listJobs } from "./jobs/store.js";
 
 export function createServer() {
   const server = new Server(
@@ -32,12 +33,35 @@ export function createServer() {
   return server;
 }
 
+function isInitializeRequest(body) {
+  if (!body) return false;
+  if (Array.isArray(body)) return body.some(isInitializeRequest);
+  return body.method === "initialize";
+}
+
+async function readJsonBody(req) {
+  const chunks = [];
+  for await (const c of req) chunks.push(c);
+  const raw = Buffer.concat(chunks).toString();
+  if (!raw) return null;
+  return JSON.parse(raw);
+}
+
 export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
-  const server = createServer();
-  const transport = new StreamableHTTPServerTransport({
-    sessionIdGenerator: () => randomUUID(),
-  });
-  await server.connect(transport);
+  const transports = new Map();
+
+  async function newSessionTransport() {
+    const server = createServer();
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: () => randomUUID(),
+      onsessioninitialized: (sid) => transports.set(sid, transport),
+    });
+    transport.onclose = () => {
+      if (transport.sessionId) transports.delete(transport.sessionId);
+    };
+    await server.connect(transport);
+    return transport;
+  }
 
   const cors = {
     "Access-Control-Allow-Origin": "*",
@@ -73,13 +97,58 @@ export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
       res.end(JSON.stringify({ catalog_version: catalogVersion, services }));
       return;
     }
+    if (req.url === "/jobs" && req.method === "GET") {
+      const jobs = listJobs(50);
+      res.writeHead(200, { ...cors, "Content-Type": "application/json" });
+      res.end(JSON.stringify({ count: jobs.length, jobs }));
+      return;
+    }
+    const jobMatch = req.url?.match(/^\/jobs\/([0-9a-fA-F-]+)$/);
+    if (jobMatch && req.method === "GET") {
+      const detail = getJobDetail(jobMatch[1]);
+      if (!detail) {
+        res.writeHead(404, { ...cors, "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "not_found" }));
+        return;
+      }
+      res.writeHead(200, { ...cors, "Content-Type": "application/json" });
+      res.end(JSON.stringify(detail));
+      return;
+    }
     if (req.url !== "/mcp") {
       res.writeHead(404, cors).end();
       return;
     }
     for (const [k, v] of Object.entries(cors)) res.setHeader(k, v);
+
+    let body = null;
     try {
-      await transport.handleRequest(req, res);
+      body = await readJsonBody(req);
+    } catch {
+      res.writeHead(400).end("invalid json");
+      return;
+    }
+
+    const sessionId = req.headers["mcp-session-id"];
+    let transport = sessionId ? transports.get(sessionId) : null;
+
+    if (!transport) {
+      if (!isInitializeRequest(body)) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            error: { code: -32000, message: "No session: send initialize first" },
+            id: body?.id ?? null,
+          }),
+        );
+        return;
+      }
+      transport = await newSessionTransport();
+    }
+
+    try {
+      await transport.handleRequest(req, res, body);
     } catch (err) {
       if (!res.headersSent) res.writeHead(500).end(String(err));
     }
@@ -89,7 +158,7 @@ export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
   const addr = http.address();
   const url = `http://${addr.address}:${addr.port}/mcp`;
   console.log(JSON.stringify({ ready: true, url }));
-  return { http, server, transport, url };
+  return { http, url };
 }
 
 const isDirectRun =
