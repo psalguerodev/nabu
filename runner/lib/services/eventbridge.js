@@ -23,9 +23,18 @@ export async function handler(page, config) {
     await sizeInput.fill(String(payloadSizeKB));
   }
 
-  // Custom events (most common for CRON/scheduled rules)
+  // Custom events. The calculator's spinbutton in "million per month"
+  // mode rejects decimals; sub-million values still need an integer here
+  // (we ceil them up to at least 1 million). Callers who really want
+  // 10K/month should be able to switch the unit, but the auto-bumped
+  // floor keeps the estimate from failing on the save with an inline
+  // validation error.
   if (customEvents > 0) {
     const eventInput = page.getByRole("spinbutton", { name: /Number of custom events Value/ });
-    await eventInput.fill(String(customEvents));
+    const v =
+      customEvents < 1
+        ? Math.max(1, Math.ceil(customEvents))
+        : Math.round(customEvents);
+    await eventInput.fill(String(v));
   }
 }
