@@ -7,44 +7,90 @@ Nabu replaces the original `aws-calculator-mcp` synchronous MCP with a hybrid mo
 - **Tauri desktop app** owns the long-running Playwright jobs, persists state, surfaces live progress, and manages the catalog of supported services.
 - **Local MCP server** (exposed by the app) lets Claude Desktop / Claude Code drive the app conversationally — building the estimate JSON, enqueuing jobs, reading results — without blocking the chat on minutes-long browser automations.
 
-## Why a new repo
-
-The legacy `aws-calculator-mcp` mixes fast synchronous tools (`search_services`, `get_service_schema`, `configure_service`) with slow Playwright execution inside a single stdio MCP. That causes timeouts, token waste while waiting, and no UX for progress or manual intervention.
-
-Nabu separates concerns:
-
-1. Fast validation/schema tools stay synchronous in the MCP.
-2. Playwright execution moves into the Tauri app, exposed via `enqueue_estimate_job` → `get_job_status` → `get_job_result`.
-
 ## Status
 
-Bootstrap. Minimum scaffold:
+Milestones 0–3 of `docs/ROADMAP.md` are shipped (2026-05-23):
 
-- `mcp/` — minimal MCP server exposing only `list_services` (stdio, Node).
-- `playwright/lib/` — service handlers carried over from `aws-calculator-mcp` (source of truth for what `list_services` returns).
-- `playbooks/` — per-service functional definitions (UI selectors, wizard steps, edge cases).
-- `.claude/skills/aws-calc-train/` — Claude Code skill for training new service handlers end-to-end (discover UI → write handler → register → test).
-- `docs/` — architecture, product, roadmap, and decision log.
+- 26 AWS services in the catalog (every legacy handler migrated to a self-contained `{id, adapter, handler}` module under `runner/lib/services/`).
+- MCP server with 8 tools (`list_supported_services`, `get_service_schema`, `validate_estimate`, `enqueue_estimate_job`, `get_job_status`, `get_job_result`, `list_jobs`, `get_version`).
+- REST companion endpoints for the desktop UI: `/health`, `/services`, `/services/:name`, `/jobs`, `/jobs/:id`, `/reload`, `/install`.
+- Real-Playwright execution path validated against `calculator.aws` for multi-service estimates up to 13 services in one job.
+- Remote catalog overlay with Ed25519 signature verification + per-file SHA-256, downloadable in one click from a GitHub Releases bundle and hot-reloaded into the running MCP without a restart.
 
-See `docs/ARCHITECTURE.md` for the target design and `docs/ROADMAP.md` for the MVP plan.
+See `docs/ROADMAP.md` for the milestone breakdown, `docs/ARCHITECTURE.md` for the design, and `docs/DECISIONS.md` for the why behind each choice.
 
-## Run the MCP (smoke test)
+## Repo layout
 
-```bash
-cd mcp
-pnpm install
-pnpm start
+```
+mcp/         Node MCP server (HTTP + stdio). Catalog, tools, /install, /reload.
+  catalog/   Embedded catalog.json + Zod schemas per service.
+  jobs/      SQLite-backed queue, executor, store.
+  sign/      Ed25519 wrapper + embedded release pubkey.
+  tools/     keygen + publish CLIs.
+runner/      Playwright sidecar. One module per service:
+  lib/services/<name>.js   exports {id, adapter, handler}.
+  lib/calculator.js        orchestrator (browser launch, navigation, save, share).
+bridge/      Thin stdio↔HTTP proxy that Claude Desktop launches.
+app/         Tauri 2 + React 19 + Vite shell. Sidebar/Statusbar UI.
+playbooks/   Per-service functional notes (selectors, wizard quirks).
+docs/        Architecture, decisions, roadmap, product spec.
 ```
 
-Wire it into Claude Desktop:
+## Local development
+
+```bash
+# Install all workspaces (mcp + runner + bridge + app)
+pnpm install
+
+# Start the Tauri app (spawns the MCP sidecar)
+pnpm -C app tauri dev
+```
+
+The MCP picks up two env vars from the Tauri parent process:
+
+- `NABU_DB_PATH` — where to write the SQLite database (settings + jobs).
+- `NABU_REMOTE_CATALOG_DIR` — where remote catalog overlays are unpacked.
+
+Both default sensibly when running standalone.
+
+## Run the MCP standalone
+
+```bash
+pnpm -C mcp start            # stdio mode
+pnpm -C mcp start:http       # HTTP mode on 127.0.0.1:7531
+pnpm -C mcp test             # node:test suite (17 tests)
+pnpm -C mcp inspect          # launches the official MCP Inspector
+```
+
+## Publishing a catalog release
+
+Every service in `mcp/catalog/` plus its handler in `runner/lib/services/` can be packaged into a signed bundle:
+
+```bash
+pnpm -C mcp release [services...]
+# -> mcp/dist/release/{latest.json, latest.json.sig, schemas/, handlers/}
+```
+
+The local publisher reads the signing key from `.env.local` (`NABU_RELEASE_PRIVATE_KEY`). Pushing a tag `catalog-v*` to GitHub triggers `.github/workflows/release.yml`, which runs the same publisher in CI and attaches the bundle to a GitHub Release.
+
+Users install a release with a single click on the **Updates** tab in the app, or with a `POST /install { base_url }` against the running MCP.
+
+## Wire it into Claude Desktop
+
+The bridge package is published as `@arkho/nabu-bridge` (local workspace today; npm-published later). For local dev:
 
 ```json
 {
   "mcpServers": {
-    "nabu": { "command": "node", "args": ["/absolute/path/to/nabu/mcp/server.js"] }
+    "nabu": {
+      "command": "node",
+      "args": ["/absolute/path/to/nabu/bridge/bridge.js"]
+    }
   }
 }
 ```
+
+The bridge proxies stdio JSON-RPC to the HTTP MCP on `127.0.0.1:7531`.
 
 ## Git hooks
 

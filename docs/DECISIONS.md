@@ -49,3 +49,35 @@ This file captures architectural decisions made in conversation, with the reason
 **Why:** Terax is a generalist dev-workspace (terminal + editor + git + AI panel). Nabu is a vertical presales tool. Forking imports features we don't want, ties us to an upstream that's only ~1 month old (likely to refactor heavily), and confuses the product identity.
 
 **What we do borrow:** the stack choice itself (Tauri 2 + React 19 + Apache-2.0) and architectural patterns where they fit (e.g. xterm + portable-pty if we ever change our mind on D3).
+
+## D7 — Zod for catalog schemas (over Ajv / pure JSON Schema)
+
+**Decision:** Each service's params are defined as a Zod schema. The JSON Schema published in the catalog is derived from Zod via `z.toJSONSchema()`, not authored by hand.
+
+**Why:** Validation, defaults, and normalized output (e.g. enums, coerced numbers) all live in one place. Zod is already a transitive dep of the MCP SDK so no extra runtime cost. Ajv would require a separate authoring surface and lose runtime ergonomics.
+
+**Tradeoff:** Zod schemas are JS, not data — they have to ship as code. That code gets bundled with esbuild before publishing so consumers don't need to install Zod themselves (see D9).
+
+## D8 — `node:sqlite` for job persistence (over `better-sqlite3`)
+
+**Decision:** The MCP uses Node's built-in `node:sqlite` (Node ≥ 22.5) for the `jobs/job_logs/job_results` tables. The Tauri side uses `tauri-plugin-sql` against the same `nabu.db` file for the settings table.
+
+**Why:** `better-sqlite3` failed to build against Node 26 (the user's runtime) and would have required a native compile in CI for every supported Node version. `node:sqlite` is built in, sync, has the same `prepare(...).run()` shape, and dodges the native module problem entirely.
+
+**Tradeoff:** Requires Node ≥ 22.5 in any environment running the MCP. Documented in `mcp/package.json` `engines.node`.
+
+## D9 — Bundle schemas with esbuild at publish time
+
+**Decision:** The publisher (`pnpm -C mcp release`) runs each schema through esbuild with `bundle: true, minify: true, format: "esm"`, inlining Zod into each file. Handlers are copied as-is because they have zero external imports.
+
+**Why:** Installed bundles live under `<app_config_dir>/remote-catalog/`, outside the mcp's `node_modules`. Node's ESM resolver walks UP from the importing file; from app config dirs it never reaches the runtime's `node_modules/zod`. Bundling sidesteps that entirely: an installed schema is a single self-contained file that loads from anywhere.
+
+**Tradeoff:** Each schema becomes ~320 KB (minified). 26 schemas ~= 8 MB total. Worth it for the simplicity. Future optimization: esbuild code-splitting to share Zod across files.
+
+## D10 — Handlers are self-contained `{id, adapter, handler}` modules
+
+**Decision:** Each service module under `runner/lib/services/<name>.js` exports `id`, `adapter(snake_case_params)` (pure function returning camelCase config), and `handler(page, config)` (the Playwright steps). No global `registerService` registry, no shared adapter switch in `runner/run.js`.
+
+**Why:** A new service is exactly one file. The remote install flow can drop that file into `<app_config_dir>/remote-catalog/handlers/` and it Just Works — `runner/run.js` resolves the handler via the catalog's `handlerPath` and dynamically imports it. Without this refactor, M3 would require shipping changes to `run.js`'s switch statement alongside each new service.
+
+**Tradeoff:** Lost the symmetry with how the legacy MCP worked (handlers self-registered as a side effect). Worth it: discoverability is now driven by the catalog, not by which files happened to be imported.

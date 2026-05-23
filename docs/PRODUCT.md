@@ -77,19 +77,24 @@ A desktop companion for AWS presales work. It lets a salesperson (or Claude on t
 
 Authoritative schemas live per-service in the catalog (`schemas/<service>.json`).
 
-## Service coverage — initial scope
+## Service coverage — current catalog
 
-Migrated from legacy MCP playbooks (see `playbooks/`):
+26 services with Zod schemas, self-contained handlers under `runner/lib/services/`, and entries in `mcp/catalog/catalog.json`:
 
-- EC2 (on-demand)
-- S3 (standard)
-- Lambda
-- API Gateway
-- CloudFront
-- DynamoDB
-- Step Functions
+| Category | Services |
+|---|---|
+| Compute | ec2, lambda |
+| Storage | s3, s3-vectors, ecr |
+| Database | dynamodb, redshift |
+| Networking | api-gateway, cloudfront, appsync, vpn |
+| Serverless | step-functions, eventbridge |
+| Data / Analytics | athena, glue |
+| AI / ML | bedrock, bedrock-agentcore, sagemaker-async, textract |
+| Security / Identity | cognito, cloudtrail, secrets-manager, waf |
+| Observability | cloudwatch, xray |
+| Management | systems-manager |
 
-Expanded handlers in `playwright/lib/services/` (current state in legacy repo) include experimental support for Bedrock, AgentCore, SageMaker, Textract, CloudTrail, S3 Vectors — these need re-validation against current calculator.aws before being marked `stable` in the Nabu catalog.
+All entries currently carry `status: schema-only` (handler version `0.0.0`). They are validated against the live calculator opportunistically by running real jobs; a scheduled health check is on the Milestone 5 list.
 
 ## Success metrics (internal)
 

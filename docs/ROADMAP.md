@@ -1,57 +1,61 @@
 # Nabu — Roadmap
 
-## Milestone 0 — Plumbing spike (1 week)
+## Milestone 0 — Plumbing spike ✅ Shipped (2026-05-23)
 
 Goal: prove the wiring end-to-end without touching Playwright.
 
-- [ ] Scaffold Tauri 2 app with React 19 frontend (sidebar + status bar shell, no business logic). Use **pnpm** throughout (workspace already defined at repo root).
-- [ ] Embed an HTTP MCP server on `127.0.0.1:7531` (Rust or Node sidecar — pick whichever is faster to iterate; Node lets us reuse legacy code).
-- [ ] Implement one tool only: `list_supported_services` returning a hardcoded stub.
-- [ ] Write `@arkho/nabu-bridge` (stdio↔HTTP) and verify Claude Desktop can call `list_supported_services` through it.
-- [ ] Status bar shows live MCP listening state and catalog version.
+- [x] Scaffold Tauri 2 app with React 19 frontend (sidebar + status bar shell, no business logic). Uses **pnpm** workspaces.
+- [x] Embed an HTTP MCP server on `127.0.0.1:7531` (Node sidecar spawned by Tauri).
+- [x] Implement `list_supported_services` returning the embedded catalog.
+- [x] Write `@arkho/nabu-bridge` (stdio↔HTTP) — Claude Desktop launches the bridge, the bridge proxies to the running app.
+- [x] Status bar shows live MCP listening state and catalog version (polls `/health` every 2s).
 
-Exit criteria: a Claude Desktop conversation can call the Nabu MCP tool and see the response come from the running Tauri app.
+**Exit met:** Claude Desktop calls Nabu MCP tools and the response comes from the running Tauri app.
 
-## Milestone 1 — Catalog + validation (1 week)
+## Milestone 1 — Catalog + validation ✅ Shipped (2026-05-23)
 
 Goal: turn the static stub into a real catalog with validation tools.
 
-- [ ] Define `catalog.json` schema (see `docs/ARCHITECTURE.md`).
-- [ ] Embedded catalog with 3 services (EC2, S3, Lambda) — schemas only, no handlers yet.
-- [ ] Implement `get_service_schema(service)` and `validate_estimate(payload)`.
-- [ ] **Services** tab in UI reads from the loaded catalog.
-- [ ] Persist settings (headless flag, default region, MCP port) in SQLite.
+- [x] `catalog.json` schema defined; embedded under `mcp/catalog/`.
+- [x] Embedded catalog with 3 → 6 → 26 services (every legacy handler has a Zod schema today).
+- [x] Tools: `get_service_schema(service)`, `validate_estimate(payload)`.
+- [x] **Services** tab reads from the catalog, with search and a per-service schema detail view (required vs optional fields, types, defaults, raw JSON Schema toggle).
+- [x] Settings persisted in SQLite (headless flag + default region) via `tauri-plugin-sql`.
 
-Exit criteria: Claude can build an estimate payload conversationally and Nabu validates it correctly without yet executing.
+**Exit met:** Claude builds estimate payloads conversationally; Nabu validates without paying the Playwright cost.
 
-## Milestone 2 — Job execution (2 weeks)
+## Milestone 2 — Job execution ✅ Shipped (2026-05-23)
 
 Goal: real Playwright jobs running through the app.
 
-- [ ] Job queue with states `queued | running | succeeded | failed | needs_intervention`.
-- [ ] Playwright sidecar process spawned per job; reuse handlers from `playwright/lib/services/`.
-- [ ] `enqueue_estimate_job`, `get_job_status`, `get_job_result` MCP tools.
-- [ ] **Jobs** tab: live list, detail view with log + final link + xlsx path.
-- [ ] Headless toggle wired through to Playwright launch options.
-- [ ] Deep link handler `nabu://job/<id>` registered in Tauri.
+- [x] Job queue with states `queued | running | succeeded | failed | needs_intervention` persisted to SQLite (`node:sqlite`).
+- [x] Playwright sidecar process spawned per job from the `runner/` package; handlers self-contained and dynamically imported.
+- [x] Tools: `enqueue_estimate_job`, `get_job_status`, `get_job_result`, `list_jobs`. Multi-service estimates supported.
+- [x] **Jobs** tab: live list with checkboxes + bulk delete, detail view with logs streaming, calculator link, total monthly, input JSON toggle, took-Xs duration after completion.
+- [x] Headless toggle (from Settings) flowing through to Playwright launch options.
+- [ ] Deep link handler `nabu://job/<id>` — deferred to Milestone 5 hardening; not blocking.
 
-Exit criteria: a full conversation → enqueue → run → result loop works end-to-end with EC2 + S3 + Lambda.
+**Exit met:** full conversational → enqueue → run → result loop verified live, including a 13-service bank-datalake combined estimate ($19,007.15/mo) and a 6-service combined estimate ($2,093.34/mo).
 
-## Milestone 3 — Remote catalog updates (1 week)
+## Milestone 3 — Remote catalog updates ✅ Shipped (2026-05-23)
 
 Goal: ship new service support without app releases.
 
-- [ ] Remote catalog endpoint (start with a GitHub Releases JSON).
-- [ ] Ed25519 signing + verification of catalog and handler files.
-- [ ] Update check on startup + manual refresh.
-- [ ] **Updates** tab with diff view and Install action.
-- [ ] Hot-reload of MCP tool list after a catalog swap.
+- [x] Remote catalog endpoint via GitHub Releases (signed assets attached to a release tagged `catalog-v*`).
+- [x] Ed25519 signing (publisher) + verification (loader) using `@noble/ed25519`. Pubkey embedded in the app; private key lives in a GitHub Actions secret.
+- [x] Manual refresh from disk (`POST /reload`) plus networked install (`POST /install` downloads, verifies, swaps).
+- [x] **Updates** tab: catalog version, remote/embedded/total stats, installed-services list with REMOTE/embedded badge, "Install latest release" button against a configurable release URL.
+- [x] Hot-reload of MCP tools after a catalog swap — no sidecar restart needed.
+- [x] Schemas bundled with esbuild (zod inlined) so installed files load regardless of `node_modules` proximity. Handlers ship as-is because they have zero external imports.
+- [x] GitHub Actions workflow (`.github/workflows/release.yml`) builds and signs the bundle on push of a `catalog-v*` tag.
 
-Exit criteria: publishing a new handler to the remote catalog makes it available to a running app instance within one refresh, with signature verification.
+**Exit met:** one click on "Install latest release" in the running app downloads the latest GitHub Release, verifies its signature, atomically swaps the overlay, reloads the MCP, and Claude immediately sees the new tools.
 
-## Milestone 4 — Iterate-on-previous + Excel export polish (1 week)
+---
 
-- [ ] `enqueue_estimate_job` accepts `parent_job_id` and uses `load_estimate` from the parent's calculator.aws URL as starting point.
+## Milestone 4 — Iterate-on-previous + Excel export polish
+
+- [ ] `enqueue_estimate_job` accepts `parent_job_id` and uses `load_estimate` from the parent's calculator.aws URL as the starting point.
 - [ ] Diff-aware updates instead of rebuilding from scratch where possible.
 - [ ] Excel export consistent with current legacy output, configurable target folder.
 
@@ -61,6 +65,8 @@ Exit criteria: publishing a new handler to the remote catalog makes it available
 - [ ] Crash recovery: in-flight jobs marked `failed` with diagnostic on app restart.
 - [ ] Signing pipeline for releases (macOS notarization).
 - [ ] Auto-update of the app binary (Tauri updater).
+- [ ] Deep link handler `nabu://job/<id>` registered in Tauri.
+- [ ] Cross-platform path handling for the `tar` extraction in `POST /install`.
 
 ## Explicitly out of scope (initial)
 
