@@ -21,6 +21,10 @@ export function adapter(params) {
     gatewayToolInvocations: params.gateway_tool_invocations,
     observabilityLogsGB: params.observability_logs_gb,
     observabilitySpansGB: params.observability_spans_gb,
+    browserSessionsPerMonth: params.browser_sessions_per_month,
+    browserSessionDurationSec: params.browser_session_duration_sec,
+    browserSessionVcpu: params.browser_session_vcpu,
+    browserSessionMemoryGB: params.browser_session_memory_gb,
   };
 }
 

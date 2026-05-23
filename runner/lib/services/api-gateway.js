@@ -7,6 +7,8 @@ export function adapter(params) {
     httpRequests: params.http_requests_millions_per_month,
     restRequests: params.rest_requests_millions_per_month,
     avgRequestSizeKB: params.avg_request_size_kb,
+    websocketMessages: params.websocket_messages_thousands_per_sec,
+    cacheGB: params.cache_gb,
   };
 }
 

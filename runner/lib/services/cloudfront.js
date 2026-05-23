@@ -4,10 +4,12 @@ export const id = "cloudfront";
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {
   return {
-    pricingModel: "payg",
+    pricingModel: params.pricing_model,
     dataOutGB: params.data_out_gb_per_month,
     dataOutToOriginGB: params.data_to_origin_gb_per_month,
     httpsRequests: params.https_requests_per_month,
+    plan: params.plan,
+    planQuantity: params.plan_quantity,
   };
 }
 

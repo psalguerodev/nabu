@@ -5,6 +5,7 @@ export const id = "athena";
 export function adapter(params) {
   return {
     queriesPerDay: params.queries_per_day,
+    queriesPerMonth: params.queries_per_month,
     dataScannedPerQueryGB: params.data_scanned_per_query_gb,
   };
 }
