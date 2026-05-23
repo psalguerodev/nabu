@@ -353,13 +353,13 @@ function JobsPanel({ mcpUp }: { mcpUp: boolean }) {
               >
                 <div className="jobs-item__top">
                   <span className="jobs-item__service">
-                    {j.name ?? j.service}
+                    {j.name ?? serviceLabel(j.service)}
                   </span>
                   <StatusBadge status={j.status} />
                 </div>
                 <div className="jobs-item__id">
-                  {j.name ? `${j.service} · ` : ""}
-                  {j.id.slice(0, 8)} · {formatRelative(j.created_at)}
+                  {j.name ? `${serviceLabel(j.service)} · ` : ""}
+                  {j.id.slice(0, 8)} · {formatJobTiming(j)}
                 </div>
               </div>
               <button
@@ -462,7 +462,7 @@ function JobDetailView({
     <section className="card jobs-detail">
       <header className="jobs-detail__header">
         <div>
-          <div className="eyebrow">{detail.service}</div>
+          <div className="eyebrow">{serviceLabel(detail.service)}</div>
           <h2>{detail.name ?? detail.id.slice(0, 8)}</h2>
         </div>
         <StatusBadge status={detail.status} />
@@ -530,6 +530,32 @@ function formatRelative(ts: number): string {
   if (s < 60) return `${s}s ago`;
   if (s < 3600) return `${Math.floor(s / 60)}m ago`;
   return `${Math.floor(s / 3600)}h ago`;
+}
+
+function formatDuration(ms: number): string {
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return rem ? `${m}m ${rem}s` : `${m}m`;
+}
+
+function formatJobTiming(job: {
+  status: string;
+  created_at: number;
+  started_at: number | null;
+  finished_at: number | null;
+}): string {
+  if (job.finished_at && job.started_at) {
+    return `took ${formatDuration(job.finished_at - job.started_at)}`;
+  }
+  return formatRelative(job.created_at);
+}
+
+function serviceLabel(service: string): string {
+  const parts = service.split("+").filter(Boolean);
+  if (parts.length === 1) return parts[0];
+  return `${parts.length} services`;
 }
 
 function formatAbs(ts: number): string {

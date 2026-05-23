@@ -33,8 +33,15 @@ test("list_supported_services returns the services defined in the catalog", asyn
   try {
     const res = await client.callTool({ name: "list_supported_services", arguments: {} });
     const payload = JSON.parse(res.content[0].text);
-    assert.deepEqual(payload.services, ["ec2", "lambda", "s3"]);
-    assert.equal(payload.count, 3);
+    assert.deepEqual(payload.services, [
+      "api-gateway",
+      "cloudfront",
+      "dynamodb",
+      "ec2",
+      "lambda",
+      "s3",
+    ]);
+    assert.equal(payload.count, 6);
     assert.equal(payload.catalog_version, "0.1.0");
   } finally {
     await transport.close();

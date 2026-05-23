@@ -1,4 +1,5 @@
 import { chromium } from "playwright";
+import { setRegion } from "./regions.js";
 
 const CALCULATOR_URL = "https://calculator.aws/#/createCalculator";
 
@@ -107,6 +108,10 @@ export async function createEstimate(services, options = {}) {
         page.getByRole("textbox", { name: "Description" }).waitFor({ timeout: 20000 }),
         page.getByRole("button", { name: "Save and view summary" }).waitFor({ timeout: 20000 }),
       ]);
+
+      if (svc.region) {
+        await setRegion(page, svc.region);
+      }
 
       const handler = getServiceHandler(svc.service);
       await handler(page, svc);

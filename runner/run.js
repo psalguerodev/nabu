@@ -28,28 +28,27 @@ function toLegacyService(service, params) {
   switch (service) {
     case "ec2": {
       const ignored = [];
-      if (params.hours_per_month != null && params.hours_per_month !== 730)
-        ignored.push("hours_per_month");
-      if (params.region) ignored.push("region");
       return {
         legacy: {
           service: "ec2",
+          region: params.region,
           instances: params.count,
           instanceType: params.instance_type,
           os: params.os === "windows" ? "Windows" : "Linux",
           pricing: "On-Demand",
+          hoursPerMonth: params.hours_per_month,
         },
         ignored,
       };
     }
     case "s3": {
       const ignored = [];
-      if (params.region) ignored.push("region");
       if (params.storage_class && params.storage_class !== "standard")
         ignored.push("storage_class");
       return {
         legacy: {
           service: "s3",
+          region: params.region,
           storageGB: params.storage_gb,
           putRequests: params.put_requests_per_month ?? 0,
           getRequests: params.get_requests_per_month ?? 0,
@@ -59,10 +58,10 @@ function toLegacyService(service, params) {
     }
     case "lambda": {
       const ignored = [];
-      if (params.region) ignored.push("region");
       return {
         legacy: {
           service: "lambda",
+          region: params.region,
           requests: params.invocations_per_month,
           durationMs: params.avg_duration_ms,
           memoryMB: params.memory_mb,
@@ -70,6 +69,48 @@ function toLegacyService(service, params) {
           freeTier: false,
         },
         ignored,
+      };
+    }
+    case "dynamodb": {
+      return {
+        legacy: {
+          service: "dynamodb",
+          region: params.region,
+          capacityMode: params.capacity_mode,
+          storageGB: params.storage_gb,
+          avgItemSizeKB: params.avg_item_size_kb,
+          baselineWriteRate: params.baseline_write_per_sec,
+          peakWriteRate: params.peak_write_per_sec,
+          baselineReadRate: params.baseline_read_per_sec,
+          peakReadRate: params.peak_read_per_sec,
+          peakDurationHours: params.peak_duration_hours,
+        },
+        ignored: [],
+      };
+    }
+    case "api-gateway": {
+      return {
+        legacy: {
+          service: "api-gateway",
+          region: params.region,
+          httpRequests: params.http_requests_millions_per_month,
+          restRequests: params.rest_requests_millions_per_month,
+          avgRequestSizeKB: params.avg_request_size_kb,
+        },
+        ignored: [],
+      };
+    }
+    case "cloudfront": {
+      return {
+        legacy: {
+          service: "cloudfront",
+          region: params.region,
+          pricingModel: "payg",
+          dataOutGB: params.data_out_gb_per_month,
+          dataOutToOriginGB: params.data_to_origin_gb_per_month,
+          httpsRequests: params.https_requests_per_month,
+        },
+        ignored: [],
       };
     }
     default:

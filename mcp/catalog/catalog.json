@@ -18,6 +18,24 @@
       "schema_ref": "schemas/lambda.js",
       "status": "schema-only",
       "tags": ["compute", "serverless"]
+    },
+    "dynamodb": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/dynamodb.js",
+      "status": "schema-only",
+      "tags": ["database", "nosql"]
+    },
+    "api-gateway": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/api-gateway.js",
+      "status": "schema-only",
+      "tags": ["networking", "serverless"]
+    },
+    "cloudfront": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/cloudfront.js",
+      "status": "schema-only",
+      "tags": ["networking", "cdn"]
     }
   }
 }

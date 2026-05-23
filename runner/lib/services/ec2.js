@@ -6,6 +6,7 @@ registerService("ec2", async (page, config) => {
     instanceType = "t3.medium",
     os = "Linux",
     pricing = "On-Demand",
+    hoursPerMonth = null,
   } = config;
 
   // Set number of instances
@@ -39,4 +40,14 @@ registerService("ec2", async (page, config) => {
     await page.getByRole("radio", { name: "Spot Instances" }).click();
   }
   // Default is Compute Savings Plans — leave as is for other cases
+
+  // Override hours/month when explicitly set (default 730 = 24 * 30.4).
+  if (hoursPerMonth != null && hoursPerMonth !== 730) {
+    const hoursField = page
+      .getByRole("spinbutton", { name: /Utilization|Hours per month|hrs\/mo/i })
+      .first();
+    if (await hoursField.isVisible({ timeout: 1500 }).catch(() => false)) {
+      await hoursField.fill(String(hoursPerMonth));
+    }
+  }
 });
