@@ -1,25 +1,28 @@
 export const id = "bedrock";
 
 // Locators the handler() depends on. Used by the daily health check.
+// The provider checkboxes have no accessible label (the visible text
+// "Amazon" / "Anthropic" lives in a grandparent span without aria-
+// linkage), so we can't probe them with getByRole + name. Instead we
+// probe the controls that ARE labelled and that must be present after a
+// provider is toggled on — model dropdown plus the four token-volume
+// textboxes. Amazon is enabled by default so they're visible immediately
+// without a healthPrerequisite.
 export const healthLocators = [
   {
-    role: "checkbox",
-    name: "Anthropic",
-    label: "Anthropic provider checkbox",
-  },
-  {
-    role: "checkbox",
-    name: "Amazon",
-    label: "Amazon provider checkbox",
-  },
-  {
-    css: 'button[aria-haspopup="listbox"]',
-    label: "model selection listbox button",
+    role: "button",
+    name: /^Select Model/i,
+    label: "model selection button",
   },
   {
     role: "textbox",
     name: "Average requests per minute",
     label: "requests per minute textbox",
+  },
+  {
+    role: "textbox",
+    name: "Hours per day at this rate",
+    label: "hours per day textbox",
   },
   {
     role: "textbox",
@@ -46,19 +49,22 @@ export function adapter(params) {
   };
 }
 
+function escapeRegex(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 // Amazon Bedrock - Foundation Model pricing
 //
-// Supports providers: "Anthropic" (Claude) and "Amazon" (Nova).
-// The provider checkbox "Amazon" is CHECKED by default; "Anthropic" is NOT.
+// Provider selection uses unlabeled checkboxes (the provider name lives in
+// a grandparent span with no aria-linkage), so we click them by walking
+// from the provider-name text node to the nearest checkbox input. Amazon
+// is checked by default; everything else is off.
 //
-// Available Anthropic models (as of 2026-04):
-//   Claude Haiku 4.5, Claude Opus 4.5, Claude Opus 4.6,
-//   Claude Sonnet 4, Claude Sonnet 4 (Long Context),
-//   Claude Sonnet 4.5, Claude Sonnet 4.5 (Long Context),
-//   Claude Sonnet 4.6
-//
-// Available Amazon Nova models (as of 2026-05):
-//   Nova Micro, Nova Lite, Nova Pro, Nova Premier
+// Available Anthropic models (as of 2026-05):
+//   Claude Haiku 4.5, Claude Opus 4.5/4.6,
+//   Claude Sonnet 4 / 4.5 / 4.6 (and Long Context variants).
+// Available Amazon Nova models:
+//   Nova Micro, Nova Lite, Nova Pro, Nova Premier.
 export async function handler(page, config) {
   const {
     provider = "Anthropic",
@@ -69,66 +75,93 @@ export async function handler(page, config) {
     outputTokensPerRequest = 500,
   } = config;
 
-  // Enable target provider, disable the other.
-  // CloudScape .prevented wrapper requires force click.
-  const setCb = async (name, wantChecked) => {
-    const cb = page.getByRole("checkbox", { name, exact: true });
-    if ((await cb.count()) === 0) return;
-    const isChecked = await cb.isChecked().catch(() => false);
-    if (isChecked !== wantChecked) {
-      await cb.click({ force: true });
-      await page.waitForTimeout(500);
-    }
+  // Toggle a provider checkbox to the desired state, looking it up by the
+  // sibling/ancestor text content since the input itself is unlabeled.
+  const setProvider = async (name, wantOn) => {
+    await page.evaluate(
+      ({ name, wantOn }) => {
+        const labels = Array.from(document.querySelectorAll("span, label"));
+        const target = labels.find(
+          (el) => el.textContent?.trim() === name,
+        );
+        if (!target) return false;
+        let node = target;
+        let input = null;
+        for (let i = 0; i < 6 && node; i++) {
+          input =
+            node.querySelector?.('input[type="checkbox"]') ||
+            node.parentElement?.querySelector?.('input[type="checkbox"]');
+          if (input) break;
+          node = node.parentElement;
+        }
+        if (!input) return false;
+        if (!!input.checked !== !!wantOn) input.click();
+        return true;
+      },
+      { name, wantOn },
+    );
+    await page.waitForTimeout(500);
   };
 
   if (provider === "Anthropic") {
-    await setCb("Anthropic", true);
-    await setCb("Amazon", false);
+    await setProvider("Anthropic", true);
+    await setProvider("Amazon", false);
   } else if (provider === "Amazon") {
-    await setCb("Amazon", true);
-    await setCb("Anthropic", false);
+    await setProvider("Amazon", true);
+    await setProvider("Anthropic", false);
+  } else {
+    // Generic: just turn the requested provider on. Don't fight whatever
+    // else is enabled — keeps the handler resilient when callers pass a
+    // provider name we don't have a hard-coded branch for.
+    await setProvider(provider, true);
   }
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(1500);
 
-  // Select model. The model dropdown shows the currently selected model as
-  // its button text (e.g. "Amazon : Nova Lite" or "Anthropic : Claude...").
-  // Filter by the provider-prefixed pattern.
+  // Model dropdown. Button reads "Select Model" before a selection and
+  // "Selected Model: <name>" / "Selected Model Ondemand" after.
   if (model) {
-    const filterPattern =
-      provider === "Amazon" ? /Amazon\s*:\s*Nova/ : /Anthropic\s*:|Claude/;
     const modelBtn = page
-      .locator('button[aria-haspopup="listbox"]')
-      .filter({ hasText: filterPattern })
+      .getByRole("button", { name: /^(Select|Selected) Model/i })
       .first();
-    await modelBtn.scrollIntoViewIfNeeded();
-    await modelBtn.click();
-    await page.waitForTimeout(1500);
-    const option = page.getByRole("option", { name: new RegExp(model, "i") }).first();
-    if ((await option.count()) > 0) {
-      await option.click();
-      await page.waitForTimeout(600);
+    if (await modelBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
+      await modelBtn.scrollIntoViewIfNeeded();
+      await modelBtn.click();
+      await page.waitForTimeout(1200);
+      const option = page
+        .getByRole("option", { name: new RegExp(escapeRegex(model), "i") })
+        .first();
+      if ((await option.count()) > 0) {
+        await option.click();
+        await page.waitForTimeout(600);
+      }
     }
   }
 
-  // Model settings.
-  // NOTE: The Bedrock config page can render one usage-settings block per
-  // enabled provider (Anthropic + Amazon), so these aria-labels are not
-  // unique on the page. We target the first matching field, which
-  // corresponds to the currently-selected provider's section (the other
-  // provider was just toggled off above, but its block may still be in the
-  // DOM until the page settles). Use .first() to satisfy Playwright strict
-  // mode.
+  // Aria-labels on these textboxes can repeat (one usage block per
+  // enabled provider), so .first() targets the active section.
   if (requestsPerMinute > 0) {
-    await page.getByRole("textbox", { name: "Average requests per minute" }).first().fill(String(requestsPerMinute));
+    await page
+      .getByRole("textbox", { name: "Average requests per minute" })
+      .first()
+      .fill(String(requestsPerMinute));
   }
   if (hoursPerDay > 0) {
-    await page.getByRole("textbox", { name: "Hours per day at this rate" }).first().fill(String(hoursPerDay));
+    await page
+      .getByRole("textbox", { name: "Hours per day at this rate" })
+      .first()
+      .fill(String(hoursPerDay));
   }
   if (inputTokensPerRequest > 0) {
-    await page.getByRole("textbox", { name: "Average input tokens per request" }).first().fill(String(inputTokensPerRequest));
+    await page
+      .getByRole("textbox", { name: "Average input tokens per request" })
+      .first()
+      .fill(String(inputTokensPerRequest));
   }
   if (outputTokensPerRequest > 0) {
-    await page.getByRole("textbox", { name: "Average output tokens per request" }).first().fill(String(outputTokensPerRequest));
+    await page
+      .getByRole("textbox", { name: "Average output tokens per request" })
+      .first()
+      .fill(String(outputTokensPerRequest));
   }
 
   await page.keyboard.press("Tab");
