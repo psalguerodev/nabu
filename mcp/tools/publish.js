@@ -1,0 +1,129 @@
+#!/usr/bin/env node
+/**
+ * Build and sign a Nabu remote catalog release bundle.
+ *
+ * Reads the local embedded catalog (mcp/catalog/catalog.json) and
+ * produces a bundle in `dist/release/` containing:
+ *
+ *   latest.json          - catalog index with sha256 per asset
+ *   latest.json.sig      - hex-encoded ed25519 signature of latest.json
+ *   schemas/<name>.js    - copy of each service's Zod schema
+ *   handlers/<name>.js   - copy of each service's handler module
+ *
+ * The private key is read from the NABU_RELEASE_PRIVATE_KEY env var.
+ * For local dev that comes from .env.local (gitignored); in CI it
+ * comes from a GitHub Actions secret of the same name.
+ *
+ * Usage:
+ *   pnpm -C mcp publish             # publish everything in the catalog
+ *   pnpm -C mcp publish ec2 s3      # publish a subset
+ */
+import { createHash } from "node:crypto";
+import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { sign } from "../sign/index.js";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO = join(HERE, "..", "..");
+const CATALOG_DIR = join(REPO, "mcp", "catalog");
+const HANDLERS_DIR = join(REPO, "runner", "lib", "services");
+// Output sits under mcp/ so the published schemas can resolve `zod` from
+// mcp/node_modules at runtime. Tauri installs that come from the network
+// will be unpacked under <app_config_dir>/remote-catalog/ — that path
+// will need a separate dep-resolution strategy (bundle deps with esbuild),
+// addressed in a follow-up.
+const OUT = join(REPO, "mcp", "dist", "release");
+
+function loadDotenv() {
+  const path = join(REPO, ".env.local");
+  try {
+    const raw = readFileSync(path, "utf8");
+    for (const line of raw.split("\n")) {
+      const m = line.match(/^([A-Z_][A-Z0-9_]*)=(.*)$/);
+      if (m && !(m[1] in process.env)) {
+        process.env[m[1]] = m[2];
+      }
+    }
+  } catch {
+    // No .env.local — relying on real env (CI).
+  }
+}
+
+function sha256(filePath) {
+  return createHash("sha256").update(readFileSync(filePath)).digest("hex");
+}
+
+async function main() {
+  loadDotenv();
+  const priv = process.env.NABU_RELEASE_PRIVATE_KEY;
+  if (!priv) {
+    console.error(
+      "Missing NABU_RELEASE_PRIVATE_KEY. Put it in .env.local for local " +
+        "dev, or expose it as a CI secret of the same name.",
+    );
+    process.exit(2);
+  }
+
+  const manifest = JSON.parse(
+    readFileSync(join(CATALOG_DIR, "catalog.json"), "utf8"),
+  );
+  const requested = process.argv.slice(2);
+  const services = requested.length
+    ? requested
+    : Object.keys(manifest.services);
+  for (const s of services) {
+    if (!manifest.services[s]) {
+      console.error(`Service '${s}' is not in the embedded catalog.`);
+      process.exit(2);
+    }
+  }
+
+  rmSync(OUT, { recursive: true, force: true });
+  mkdirSync(join(OUT, "schemas"), { recursive: true });
+  mkdirSync(join(OUT, "handlers"), { recursive: true });
+
+  const releaseServices = {};
+  for (const name of services) {
+    const schemaSrc = join(CATALOG_DIR, manifest.services[name].schema_ref);
+    const handlerSrc = join(HANDLERS_DIR, `${name}.js`);
+    const schemaDst = join(OUT, "schemas", `${name}.js`);
+    const handlerDst = join(OUT, "handlers", `${name}.js`);
+    copyFileSync(schemaSrc, schemaDst);
+    copyFileSync(handlerSrc, handlerDst);
+
+    releaseServices[name] = {
+      handler_version: manifest.services[name].handler_version,
+      schema_ref: `schemas/${name}.js`,
+      handler_ref: `handlers/${name}.js`,
+      schema_sha256: sha256(schemaDst),
+      handler_sha256: sha256(handlerDst),
+      status: manifest.services[name].status,
+      tags: manifest.services[name].tags ?? [],
+    };
+  }
+
+  const releasedAt = new Date().toISOString();
+  const indexObj = {
+    catalog_version: `${manifest.version}+${releasedAt}`,
+    released_at: releasedAt,
+    min_app_version: "0.1.0",
+    services: releaseServices,
+  };
+  const indexJson = JSON.stringify(indexObj, null, 2);
+  writeFileSync(join(OUT, "latest.json"), indexJson);
+
+  const signature = await sign(indexJson, priv);
+  writeFileSync(join(OUT, "latest.json.sig"), signature);
+
+  console.log(
+    `Published ${services.length} service(s) to ${OUT}\n` +
+      `  catalog_version: ${indexObj.catalog_version}\n` +
+      `  signature: ${signature.slice(0, 32)}…`,
+  );
+}
+
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

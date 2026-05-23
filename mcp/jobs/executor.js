@@ -2,6 +2,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { addLog, setResult, setStatus, getJob } from "./store.js";
+import { getCatalogEntry } from "../catalog/index.js";
 
 const STUB_DURATION_MS = Number(process.env.NABU_STUB_DURATION_MS ?? 5000);
 const EXECUTOR_MODE = process.env.NABU_EXECUTOR ?? "real";
@@ -59,9 +60,17 @@ export function runReal(jobId) {
     stdio: ["pipe", "pipe", "pipe"],
   });
 
-  const services = job.params?.services
+  const rawServices = job.params?.services
     ? job.params.services
     : [{ service: job.service, params: job.params }];
+  const services = rawServices.map(({ service, params }) => {
+    const entry = getCatalogEntry(service);
+    return {
+      service,
+      params,
+      handler_path: entry?.handlerPath ?? null,
+    };
+  });
   child.stdin.write(
     JSON.stringify({
       jobId,

@@ -1,4 +1,4 @@
-import { catalogVersion, listCatalogServices } from "../catalog/index.js";
+import { getCatalogVersion, listCatalogServices } from "../catalog/index.js";
 
 export const definition = {
   name: "list_supported_services",
@@ -16,7 +16,7 @@ export async function handler() {
           {
             count: services.length,
             services,
-            catalog_version: catalogVersion,
+            catalog_version: getCatalogVersion(),
           },
           null,
           2,

@@ -32,11 +32,11 @@ async function readStdin() {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-async function loadHandlerModule(service) {
+async function loadHandlerModule(service, explicitPath) {
   if (!/^[a-z0-9-]+$/.test(service)) {
     throw new Error(`Invalid service name: ${service}`);
   }
-  const path = join(SERVICES_DIR, `${service}.js`);
+  const path = explicitPath || join(SERVICES_DIR, `${service}.js`);
   let mod;
   try {
     mod = await import(path);
@@ -75,10 +75,10 @@ async function main() {
   });
 
   const resolved = [];
-  for (const { service, params } of services) {
+  for (const { service, params, handler_path } of services) {
     let mod;
     try {
-      mod = await loadHandlerModule(service);
+      mod = await loadHandlerModule(service, handler_path);
     } catch (err) {
       emit({ type: "error", message: err.message });
       process.exit(1);

@@ -2,6 +2,7 @@ node_modules/
 .pnpm-store/
 target/
 dist/
+mcp/dist/
 .DS_Store
 *.log
 .env

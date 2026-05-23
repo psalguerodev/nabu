@@ -11,7 +11,12 @@ import { randomUUID } from "node:crypto";
 
 import { tools, registry } from "./tools/index.js";
 import { SERVER_NAME, SERVER_VERSION } from "./tools/get-version.js";
-import { catalog, catalogVersion, listCatalogServices } from "./catalog/index.js";
+import {
+  getCatalogEntry,
+  getCatalogVersion,
+  listCatalogServices,
+  reload as reloadCatalog,
+} from "./catalog/index.js";
 import { getJobDetail, listJobs, deleteJob, deleteJobs } from "./jobs/store.js";
 
 export function createServer() {
@@ -83,23 +88,23 @@ export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
           ok: true,
           name: SERVER_NAME,
           version: SERVER_VERSION,
-          catalog_version: catalogVersion,
+          catalog_version: getCatalogVersion(),
         }),
       );
       return;
     }
     if (req.url === "/services" && req.method === "GET") {
       const services = listCatalogServices().map((name) => {
-        const e = catalog.get(name);
+        const e = getCatalogEntry(name);
         return { name, ...e.meta };
       });
       res.writeHead(200, { ...cors, "Content-Type": "application/json" });
-      res.end(JSON.stringify({ catalog_version: catalogVersion, services }));
+      res.end(JSON.stringify({ catalog_version: getCatalogVersion(), services }));
       return;
     }
     const svcMatch = req.url?.match(/^\/services\/([a-z0-9-]+)$/);
     if (svcMatch && req.method === "GET") {
-      const entry = catalog.get(svcMatch[1]);
+      const entry = getCatalogEntry(svcMatch[1]);
       if (!entry) {
         res.writeHead(404, { ...cors, "Content-Type": "application/json" });
         res.end(JSON.stringify({ error: "not_found" }));
@@ -113,6 +118,17 @@ export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
           schema: entry.jsonSchema,
         }),
       );
+      return;
+    }
+    if (req.url === "/reload" && req.method === "POST") {
+      try {
+        const info = await reloadCatalog();
+        res.writeHead(200, { ...cors, "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, ...info }));
+      } catch (err) {
+        res.writeHead(500, { ...cors, "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: String(err) }));
+      }
       return;
     }
     if (req.url === "/jobs" && req.method === "GET") {
