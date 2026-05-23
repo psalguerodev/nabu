@@ -1,5 +1,7 @@
 export const id = "bedrock";
 
+export const version = "0.1.2";
+
 // Locators the handler() depends on. Used by the daily health check.
 // The provider checkboxes have no accessible label (the visible text
 // "Amazon" / "Anthropic" lives in a grandparent span without aria-

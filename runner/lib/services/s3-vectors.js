@@ -1,5 +1,7 @@
 export const id = "s3-vectors";
 
+export const version = "0.1.0";
+
 // Health check must enable the S3 Vectors sub-feature before probing
 // locators — without the checkbox toggled the form fields don't render.
 export async function healthPrerequisite(page) {

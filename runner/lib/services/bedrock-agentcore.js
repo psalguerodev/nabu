@@ -1,5 +1,7 @@
 export const id = "bedrock-agentcore";
 
+export const version = "0.1.1";
+
 // Locators the handler() depends on. Used by the daily health check.
 // Only the always-on Runtime section is probed; sub-services (Gateway,
 // Browser Tools, Observability, etc.) are opt-in and skipped here.

@@ -61,14 +61,26 @@ async function loadEmbedded() {
   for (const [name, meta] of Object.entries(manifest.services)) {
     const schemaPath = join(EMBEDDED_SCHEMAS_DIR, meta.schema_ref);
     const handlerPath = join(EMBEDDED_HANDLERS_DIR, `${name}.js`);
-    const mod = await dynamicImport(schemaPath);
+    const [schemaMod, handlerMod] = await Promise.all([
+      dynamicImport(schemaPath),
+      dynamicImport(handlerPath),
+    ]);
+    // handler_version is sourced from the handler module's `version` export,
+    // so it lives next to the code that determines it. catalog.json's
+    // handler_version (if present) is a legacy fallback.
+    const handlerVersion =
+      handlerMod.version ?? meta.handler_version ?? "0.0.0";
     entries.push([
       name,
       {
         name,
-        meta: { ...meta, source: "embedded" },
-        zodSchema: mod.zodSchema,
-        jsonSchema: mod.jsonSchema,
+        meta: {
+          ...meta,
+          handler_version: handlerVersion,
+          source: "embedded",
+        },
+        zodSchema: schemaMod.zodSchema,
+        jsonSchema: schemaMod.jsonSchema,
         schemaPath,
         handlerPath,
       },

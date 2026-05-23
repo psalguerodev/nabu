@@ -1,5 +1,7 @@
 export const id = "sagemaker-async";
 
+export const version = "0.1.0";
+
 // Health check must mirror the same three-toggle sequence the handler
 // uses to land on the Asynchronous Inference form (disable the two
 // notebook sub-features, enable Async Inference).

@@ -1,5 +1,7 @@
 export const id = "redshift";
 
+export const version = "0.1.0";
+
 // Health check needs to flip the wizard to the Serverless branch
 // before probing locators — the wizard opens on Provisioned by default.
 export async function healthPrerequisite(page) {

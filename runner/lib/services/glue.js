@@ -1,5 +1,7 @@
 export const id = "glue";
 
+export const version = "0.1.1";
+
 // Locators the handler() depends on. Used by the daily health check.
 export const healthLocators = [
   {

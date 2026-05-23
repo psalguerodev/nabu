@@ -1,5 +1,7 @@
 export const id = "step-functions";
 
+export const version = "0.1.0";
+
 // Locators the handler() depends on. Used by the daily health check.
 // Express Workflows checkbox is opt-in and excluded.
 export const healthLocators = [

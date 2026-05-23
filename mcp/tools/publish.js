@@ -109,13 +109,15 @@ async function main() {
 
     const handlerHash = sha256(handlerDst);
     const schemaHash = sha256(schemaDst);
-    // Derive a per-handler version from the content hash so a re-publish
-    // with no changes keeps the same version, and a real handler edit
-    // produces a fresh one. The embedded catalog still ships a placeholder
-    // ("0.0.0"); the released entry overrides it.
+    // Read the handler module's exported `version` to compose the released
+    // per-service version. Re-publishing with no code change keeps the
+    // semver part stable; the +<sha8> build identifier changes whenever
+    // the file content does.
+    const handlerMod = await import(handlerDst);
+    const baseVersion = handlerMod.version ?? "0.1.0";
     const versionSuffix = handlerHash.slice(0, 8);
     releaseServices[name] = {
-      handler_version: `0.1.0-${versionSuffix}`,
+      handler_version: `${baseVersion}+${versionSuffix}`,
       schema_ref: `schemas/${name}.js`,
       handler_ref: `handlers/${name}.js`,
       schema_sha256: schemaHash,

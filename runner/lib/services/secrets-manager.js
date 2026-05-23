@@ -1,5 +1,7 @@
 export const id = "secrets-manager";
 
+export const version = "0.1.1";
+
 // Locators the handler() depends on. Used by the daily health check.
 // Unit-switch dropdown (days/months) is skipped — only used on long durations.
 export const healthLocators = [

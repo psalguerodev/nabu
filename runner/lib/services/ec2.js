@@ -1,5 +1,7 @@
 export const id = "ec2";
 
+export const version = "0.1.1";
+
 // Locators the handler() below depends on. Used by the daily health
 // check to detect calculator.aws UI drift — none of these are filled,
 // just probed for visibility.

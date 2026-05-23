@@ -1,5 +1,7 @@
 export const id = "vpn";
 
+export const version = "0.1.0";
+
 // Locators the handler() depends on. Used by the daily health check.
 export const healthLocators = [
   {

@@ -1,5 +1,7 @@
 export const id = "cloudfront";
 
+export const version = "0.1.1";
+
 // Health check needs to flip the wizard to the Pay-as-you-go branch
 // before probing locators — the wizard opens on Flat Rate by default.
 export async function healthPrerequisite(page) {
