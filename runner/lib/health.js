@@ -42,15 +42,23 @@ export async function checkLocators(page, locators, { timeout = DEFAULT_TIMEOUT_
       missing.push(entry.label || "(invalid locator)");
       continue;
     }
-    // waitFor actually waits up to `timeout` for the element to become
-    // visible, unlike isVisible() which returns immediately and uses its
-    // timeout option only when the locator hasn't attached yet.
-    const visible = await locator
-      .first()
-      .waitFor({ state: "visible", timeout })
-      .then(() => true)
-      .catch(() => false);
-    if (!visible) missing.push(entry.label || entry.name?.toString() || entry.css);
+    // Poll for the element to be attached + non-empty. Avoid Playwright's
+    // strict "visible" semantics (no overlap, in-viewport-ish) — those
+    // fail on legitimately-rendered-but-offscreen fields. For drift
+    // detection we only care whether the DOM has it at all.
+    let found = false;
+    const deadline = Date.now() + timeout;
+    while (Date.now() < deadline) {
+      const count = await locator.count().catch(() => 0);
+      if (count > 0) {
+        found = true;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 150));
+    }
+    if (!found) {
+      missing.push(entry.label || entry.name?.toString() || entry.css);
+    }
   }
   return { ok: missing.length === 0, missing };
 }

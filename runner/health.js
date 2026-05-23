@@ -124,13 +124,27 @@ async function snapshotInputs(page) {
 }
 
 async function cancelWizard(page) {
-  const cancelBtn = page.getByRole("button", { name: "Cancel" }).first();
-  if (await cancelBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
-    await cancelBtn.click();
+  // Each configure-then-cancel cycle leaves calculator.aws session state
+  // around (toggle states, scroll position, sub-feature checkboxes). That
+  // bleeds into the next service's wizard and corrupts what default
+  // controls render. A full page.goto resets the state cleanly. Slower
+  // than a breadcrumb click but worth the ~2s/service for a reliable
+  // sweep.
+  try {
+    await page.goto(CALCULATOR_URL, {
+      waitUntil: "networkidle",
+      timeout: 30000,
+    });
+    await hideChatbot(page);
+    await gotoAddService(page);
+  } catch {
+    // Fall back to a simple Cancel + breadcrumb navigation if the reload
+    // path fails (slow network, blocked, etc).
+    const cancelBtn = page.getByRole("button", { name: "Cancel" }).first();
+    if (await cancelBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await cancelBtn.click();
+    }
   }
-  const searchBox = page.getByRole("searchbox", { name: "Find Service" });
-  if (await searchBox.isVisible({ timeout: 2000 }).catch(() => false)) return;
-  await gotoAddService(page);
 }
 
 async function main() {

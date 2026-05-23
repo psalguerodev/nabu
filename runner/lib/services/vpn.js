@@ -1,18 +1,24 @@
 export const id = "vpn";
 
-export const version = "0.1.0";
+export const version = "0.1.1";
 
-// Locators the handler() depends on. Used by the daily health check.
+// Scroll past the VPC sub-service toggle grid so the VPN Connection fields
+// below it lazy-render before the probe runs.
+export async function healthPrerequisite(page) {
+  await page.evaluate(() => window.scrollBy(0, 600));
+  await page.waitForTimeout(400);
+}
+
+// CSS-based locators so we don't depend on platform-specific implicit roles
+// of <input> elements.
 export const healthLocators = [
   {
-    role: "textbox",
-    name: /Number of Site-to-Site VPN Connections/,
-    label: "Site-to-Site VPN connections textbox",
+    css: 'input[aria-label*="Number of Site-to-Site VPN Connections"]',
+    label: "Site-to-Site VPN connections input",
   },
   {
-    role: "spinbutton",
-    name: /Average duration for each connection Value/,
-    label: "average connection duration spinbutton",
+    css: 'input[aria-label*="Average duration for each connection"]',
+    label: "average connection duration input",
   },
 ];
 

@@ -1,23 +1,23 @@
 export const id = "s3";
 
-export const version = "0.1.0";
+export const version = "0.1.1";
 
-// Locators the handler() depends on. Used by the daily health check.
+// CSS-based locators so we don't depend on the platform-specific implicit
+// role of <input> (Linux Chromium calls it textbox, macOS Chromium calls
+// it spinbutton — same DOM node). Broad aria-label prefix matches survive
+// the "Value" / "Enter amount" suffix AWS sometimes appends.
 export const healthLocators = [
   {
-    role: "spinbutton",
-    name: /S3 Standard storage/,
-    label: "S3 Standard storage spinbutton",
+    css: 'input[aria-label^="S3 Standard storage"]',
+    label: "S3 Standard storage input",
   },
   {
-    role: "textbox",
-    name: /PUT, COPY, POST, LIST requests/,
-    label: "PUT requests textbox",
+    css: 'input[aria-label*="PUT"]',
+    label: "PUT requests input",
   },
   {
-    role: "textbox",
-    name: /GET, SELECT, and all other requests/,
-    label: "GET requests textbox",
+    css: 'input[aria-label*="GET, SELECT"]',
+    label: "GET requests input",
   },
 ];
 

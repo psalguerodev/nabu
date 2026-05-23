@@ -1,21 +1,26 @@
 export const id = "sagemaker-async";
 
-export const version = "0.1.0";
+export const version = "0.1.1";
 
-// Health check must mirror the same three-toggle sequence the handler
-// uses to land on the Asynchronous Inference form (disable the two
-// notebook sub-features, enable Async Inference).
+// Health check must put the wizard into the Asynchronous Inference state
+// (Studio Notebooks off, On-Demand Notebooks off, Async Inference on).
+// We read each checkbox's actual state and click only if it needs to flip,
+// instead of blindly toggling — otherwise a half-flipped state from a
+// previous run in the same browser session leaves the form in the wrong
+// shape and the locators don't render.
 export async function healthPrerequisite(page) {
   await page.evaluate(() => {
-    const toggle = (dataId) => {
+    const setCb = (dataId, want) => {
       const wrap = document.querySelector(`[data-id="${dataId}"]`);
-      wrap?.querySelector('input[type="checkbox"]')?.click();
+      const input = wrap?.querySelector('input[type="checkbox"]');
+      if (!input) return;
+      if (!!input.checked !== !!want) input.click();
     };
-    toggle("sageMakerStudioNotebooks");
-    toggle("sageMakerOnDemandNotebookInstances");
-    toggle("sageMakerAsynchronousInference");
+    setCb("sageMakerStudioNotebooks", false);
+    setCb("sageMakerOnDemandNotebookInstances", false);
+    setCb("sageMakerAsynchronousInference", true);
   });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1500);
 }
 
 // Locators the handler() depends on. Used by the daily health check.
@@ -90,15 +95,20 @@ export async function handler(page, config) {
     dataOutGB = 0,
   } = config;
 
-  // Toggle feature checkboxes via underlying input click (fires React onChange).
+  // Toggle feature checkboxes via underlying input click (fires React
+  // onChange). Idempotent: read current state and click only when a flip
+  // is needed, so a half-initialized form from a previous wizard run
+  // doesn't leave us in the wrong configuration.
   await page.evaluate(() => {
-    const toggle = (dataId) => {
+    const setCb = (dataId, want) => {
       const wrap = document.querySelector(`[data-id="${dataId}"]`);
-      wrap?.querySelector('input[type="checkbox"]')?.click();
+      const input = wrap?.querySelector('input[type="checkbox"]');
+      if (!input) return;
+      if (!!input.checked !== !!want) input.click();
     };
-    toggle("sageMakerStudioNotebooks");
-    toggle("sageMakerOnDemandNotebookInstances");
-    toggle("sageMakerAsynchronousInference");
+    setCb("sageMakerStudioNotebooks", false);
+    setCb("sageMakerOnDemandNotebookInstances", false);
+    setCb("sageMakerAsynchronousInference", true);
   });
   await page.waitForTimeout(1500);
 
