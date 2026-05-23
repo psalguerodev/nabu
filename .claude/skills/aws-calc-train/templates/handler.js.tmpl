@@ -1,0 +1,43 @@
+import { registerService } from "../calculator.js";
+
+// {{ServiceName}} — short description of what this service models.
+// Notes about the calculator form (feature toggles, dropdowns, required fields).
+registerService("{{service-id}}", async (page, config) => {
+  const {
+    // Destructure all configurable knobs with sensible defaults.
+    // Prefer 0 as the default for "counts" so the handler skips the section,
+    // but remember: if the feature is checked-by-default in the form and
+    // you don't want it, you must uncheck it via setFeature() below.
+    exampleCount = 0,
+    exampleHoursPerDay = 8,
+  } = config;
+
+  // Toggle a feature checkbox by label to match desired state
+  const setFeature = async (label, wantChecked) => {
+    const cb = page.getByRole("checkbox", { name: label });
+    if (await cb.count() === 0) return;
+    const isChecked = await cb.isChecked().catch(() => false);
+    if (isChecked !== wantChecked) {
+      await cb.click();
+      await page.waitForTimeout(500);
+    }
+  };
+
+  // Example: turn off default-on features the caller does not want
+  // await setFeature("{{ServiceName}} SomeFeature", exampleCount > 0);
+
+  // Example: fill a numeric field
+  if (exampleCount > 0) {
+    await page.getByRole("textbox", { name: /Example field label/ }).fill(String(exampleCount));
+    await page.getByRole("textbox", { name: /Hours per day/ }).fill(String(exampleHoursPerDay));
+  }
+
+  // Example: choose an option from a listbox dropdown
+  // await page.getByRole("button", { name: /Current selection/ }).click();
+  // await page.waitForTimeout(500);
+  // await page.getByRole("option", { name: "Desired option" }).click();
+
+  // Commit the last field to React state by blurring
+  await page.keyboard.press("Tab");
+  await page.waitForTimeout(500);
+});

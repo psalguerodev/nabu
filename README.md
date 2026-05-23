@@ -18,13 +18,33 @@ Nabu separates concerns:
 
 ## Status
 
-Bootstrap. Carries over from `aws-calculator-mcp`:
+Bootstrap. Minimum scaffold:
 
-- `playwright/` — service handlers, calculator wrapper, example payloads.
+- `mcp/` — minimal MCP server exposing only `list_services` (stdio, Node).
+- `playwright/lib/` — service handlers carried over from `aws-calculator-mcp` (source of truth for what `list_services` returns).
 - `playbooks/` — per-service functional definitions (UI selectors, wizard steps, edge cases).
-- `reference/legacy-mcp/` — the previous MCP `index.js` for reference while reimplementing.
+- `.claude/skills/aws-calc-train/` — Claude Code skill for training new service handlers end-to-end (discover UI → write handler → register → test).
+- `docs/` — architecture, product, roadmap, and decision log.
 
 See `docs/ARCHITECTURE.md` for the target design and `docs/ROADMAP.md` for the MVP plan.
+
+## Run the MCP (smoke test)
+
+```bash
+cd mcp
+pnpm install
+pnpm start
+```
+
+Wire it into Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "nabu": { "command": "node", "args": ["/absolute/path/to/nabu/mcp/server.js"] }
+  }
+}
+```
 
 ## License
 

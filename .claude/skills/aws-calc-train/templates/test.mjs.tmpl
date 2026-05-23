@@ -1,0 +1,20 @@
+import { createEstimate } from "./lib/calculator.js";
+import "./lib/services/{{service-id}}.js";
+
+const services = [
+  {
+    service: "{{service-id}}",
+    description: "Smoke test for {{ServiceName}} handler",
+    // TODO: fill with sample config matching the handler's destructured keys
+    exampleCount: 1,
+    exampleHoursPerDay: 8,
+  },
+];
+
+console.log("Testing {{service-id}} handler...");
+const result = await createEstimate(services, {
+  name: "Test {{ServiceName}}",
+  region: "us-east-1",
+  headless: true, // flip to false to debug visually
+});
+console.log(JSON.stringify(result, null, 2));

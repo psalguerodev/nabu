@@ -4,7 +4,7 @@
 
 Goal: prove the wiring end-to-end without touching Playwright.
 
-- [ ] Scaffold Tauri 2 app with React 19 frontend (sidebar + status bar shell, no business logic).
+- [ ] Scaffold Tauri 2 app with React 19 frontend (sidebar + status bar shell, no business logic). Use **pnpm** throughout (workspace already defined at repo root).
 - [ ] Embed an HTTP MCP server on `127.0.0.1:7531` (Rust or Node sidecar — pick whichever is faster to iterate; Node lets us reuse legacy code).
 - [ ] Implement one tool only: `list_supported_services` returning a hardcoded stub.
 - [ ] Write `@arkho/nabu-bridge` (stdio↔HTTP) and verify Claude Desktop can call `list_supported_services` through it.
