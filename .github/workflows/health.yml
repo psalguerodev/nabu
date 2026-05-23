@@ -57,6 +57,10 @@ jobs:
           pnpm -C runner health $SERVICES > artifacts/health.ndjson
           probe_exit=$?
           set -e
+          # pnpm prints [ELIFECYCLE] when the underlying command exits
+          # non-zero; we strip non-JSON lines to keep downstream parsing clean.
+          grep '^{' artifacts/health.ndjson > artifacts/health.clean.ndjson || true
+          mv artifacts/health.clean.ndjson artifacts/health.ndjson
           tail -n 1 artifacts/health.ndjson > artifacts/health-report.json
           echo "exit_code=$probe_exit" >> "$GITHUB_OUTPUT"
           cat artifacts/health-report.json
@@ -82,7 +86,7 @@ jobs:
             const lines = fs
               .readFileSync(path, "utf8")
               .split("\n")
-              .filter(Boolean)
+              .filter((l) => l.startsWith("{"))
               .map((l) => JSON.parse(l));
             const services = lines.filter((l) => l.type === "service");
             const report = lines.find((l) => l.type === "report");
