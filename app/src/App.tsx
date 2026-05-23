@@ -157,7 +157,7 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
   const [lastReload, setLastReload] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
   const [checking, setChecking] = useState(false);
-  const [releaseUrl, setReleaseUrl] = useState(DEFAULT_RELEASE_URL);
+  const releaseUrl = DEFAULT_RELEASE_URL;
   const [installResult, setInstallResult] = useState<{
     services: number;
     version: string;
@@ -319,15 +319,10 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
 
       <section className="card updates-install">
         <div className="eyebrow">Install from remote</div>
-        <label className="updates-install__row">
+        <div className="updates-install__row updates-install__row--readonly">
           <span className="setting-label">Release base URL</span>
-          <input
-            type="text"
-            value={releaseUrl}
-            onChange={(e) => setReleaseUrl(e.currentTarget.value)}
-            placeholder="https://.../releases/latest/download/"
-          />
-        </label>
+          <code className="updates-install__url">{releaseUrl}</code>
+        </div>
 
         {updateCheck && (
           <div className="updates-check">
