@@ -19,7 +19,7 @@ export function listServices(dir = HANDLERS_DIR) {
 }
 
 export const definition = {
-  name: "list_services",
+  name: "list_supported_services",
   description: "List AWS services Nabu can currently estimate.",
   inputSchema: { type: "object", properties: {} },
 };

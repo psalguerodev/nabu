@@ -1,0 +1,16 @@
+{
+  "name": "@arkho/nabu-bridge",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "nabu-bridge": "./bridge.js"
+  },
+  "scripts": {
+    "start": "node bridge.js",
+    "test": "node --test 'test/*.test.js'"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

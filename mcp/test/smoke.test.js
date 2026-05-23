@@ -17,21 +17,21 @@ async function connect() {
   return { client, transport };
 }
 
-test("MCP advertises list_services tool", async () => {
+test("MCP advertises list_supported_services tool", async () => {
   const { client, transport } = await connect();
   try {
     const { tools } = await client.listTools();
     const names = tools.map((t) => t.name);
-    assert.ok(names.includes("list_services"), `missing list_services in ${names.join(",")}`);
+    assert.ok(names.includes("list_supported_services"), `missing list_supported_services in ${names.join(",")}`);
   } finally {
     await transport.close();
   }
 });
 
-test("list_services returns the handlers from playwright/lib/services", async () => {
+test("list_supported_services returns the handlers from playwright/lib/services", async () => {
   const { client, transport } = await connect();
   try {
-    const res = await client.callTool({ name: "list_services", arguments: {} });
+    const res = await client.callTool({ name: "list_supported_services", arguments: {} });
     const payload = JSON.parse(res.content[0].text);
     assert.ok(payload.count > 0, "expected at least one service");
     assert.equal(payload.count, payload.services.length);

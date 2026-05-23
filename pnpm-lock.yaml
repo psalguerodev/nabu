@@ -40,6 +40,12 @@ importers:
         specifier: ^7.0.4
         version: 7.3.3
 
+  bridge:
+    dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.0.0
+        version: 1.29.0(zod@4.4.3)
+
   mcp:
     dependencies:
       '@modelcontextprotocol/sdk':

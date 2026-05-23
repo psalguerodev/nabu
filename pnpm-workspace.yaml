@@ -1,6 +1,7 @@
 packages:
   - "mcp"
   - "app"
+  - "bridge"
 allowBuilds:
   esbuild: true
 minimumReleaseAge: 0

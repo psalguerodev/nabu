@@ -202,3 +202,8 @@ body,
   background: var(--accent);
   box-shadow: 0 0 0 3px rgba(56, 224, 168, 0.18);
 }
+
+.status-dot--off {
+  background: #7a3b3b;
+  box-shadow: 0 0 0 3px rgba(255, 80, 80, 0.12);
+}

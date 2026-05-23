@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "start:http": "node server.js --http",
     "test": "node --test 'test/*.test.js'",
     "inspect": "npx -y @modelcontextprotocol/inspector node server.js"
   },
