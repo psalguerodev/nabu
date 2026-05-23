@@ -1,2 +1,7 @@
 packages:
   - "mcp"
+  - "app"
+allowBuilds:
+  esbuild: true
+minimumReleaseAge: 0
+verifyDepsBeforeRun: false
