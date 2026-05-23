@@ -95,6 +95,65 @@ async function fetchToFile(url, dest, { retries = 4 } = {}) {
   throw lastErr;
 }
 
+function compareCatalogVersions(a, b) {
+  const ta = a?.split("+")[1] ?? "";
+  const tb = b?.split("+")[1] ?? "";
+  if (ta && tb) return ta < tb ? -1 : ta > tb ? 1 : 0;
+  // Fall back to lexical comparison of the whole string.
+  return (a ?? "") < (b ?? "") ? -1 : (a ?? "") > (b ?? "") ? 1 : 0;
+}
+
+async function checkUpdates({ base_url }) {
+  if (!base_url) throw new Error("provide base_url");
+  const base = base_url.endsWith("/") ? base_url : `${base_url}/`;
+  const stage = await mkdtemp(join(tmpdir(), "nabu-check-"));
+  try {
+    const indexPath = join(stage, "latest.json");
+    const sigPath = join(stage, "latest.json.sig");
+    await fetchToFile(`${base}latest.json`, indexPath);
+    await fetchToFile(`${base}latest.json.sig`, sigPath);
+    const raw = (await readFile(indexPath)).toString("utf8");
+    const sig = (await readFile(sigPath)).toString("utf8").trim();
+    const sigOk = await verify(raw, sig, NABU_PUBKEY_HEX);
+    if (!sigOk) throw new Error("ed25519 signature did not verify");
+    const remote = JSON.parse(raw);
+
+    const installedVersion = getCatalogVersion();
+    const availableVersion = remote.catalog_version;
+    const cmp = compareCatalogVersions(availableVersion, installedVersion);
+
+    const localByName = new Map(
+      listCatalogServices().map((n) => [n, getCatalogEntry(n)]),
+    );
+    const adds = [];
+    const updates = [];
+    for (const [name, meta] of Object.entries(remote.services ?? {})) {
+      const local = localByName.get(name);
+      if (!local) {
+        adds.push({ name, handler_version: meta.handler_version });
+      } else if (local.meta.handler_version !== meta.handler_version) {
+        updates.push({
+          name,
+          from: local.meta.handler_version,
+          to: meta.handler_version,
+        });
+      }
+    }
+
+    return {
+      installed_version: installedVersion,
+      available_version: availableVersion,
+      is_newer: cmp > 0,
+      same: cmp === 0,
+      total_remote_services: Object.keys(remote.services ?? {}).length,
+      adds,
+      updates,
+    };
+  } finally {
+    await rm(stage, { recursive: true, force: true });
+  }
+}
+
 async function installRelease({ base_url, tarball_url }) {
   const targetDir = process.env.NABU_REMOTE_CATALOG_DIR;
   if (!targetDir) {
@@ -249,6 +308,18 @@ export async function startHttp({ host = "127.0.0.1", port = 7531 } = {}) {
           schema: entry.jsonSchema,
         }),
       );
+      return;
+    }
+    if (req.url === "/check-updates" && req.method === "POST") {
+      try {
+        const body = await readJson(req);
+        const result = await checkUpdates(body);
+        res.writeHead(200, { ...cors, "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: true, ...result }));
+      } catch (err) {
+        res.writeHead(500, { ...cors, "Content-Type": "application/json" });
+        res.end(JSON.stringify({ ok: false, error: String(err.message ?? err) }));
+      }
       return;
     }
     if (req.url === "/install" && req.method === "POST") {

@@ -20,6 +20,7 @@ const SERVICES_URL = `${MCP_BASE}/services`;
 const JOBS_URL = `${MCP_BASE}/jobs`;
 const RELOAD_URL = `${MCP_BASE}/reload`;
 const INSTALL_URL = `${MCP_BASE}/install`;
+const CHECK_UPDATES_URL = `${MCP_BASE}/check-updates`;
 const DEFAULT_RELEASE_URL =
   "https://github.com/psalguerodev/nabu/releases/latest/download/";
 const POLL_INTERVAL_MS = 2000;
@@ -28,6 +29,16 @@ type McpStatus =
   | { state: "checking" }
   | { state: "up"; name: string; version: string; catalogVersion?: string }
   | { state: "down"; reason: string };
+
+type UpdateCheck = {
+  installed_version: string | null;
+  available_version: string;
+  is_newer: boolean;
+  same: boolean;
+  total_remote_services: number;
+  adds: { name: string; handler_version: string }[];
+  updates: { name: string; from: string; to: string }[];
+};
 
 type CatalogService = {
   name: string;
@@ -145,11 +156,13 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
   const [reloading, setReloading] = useState(false);
   const [lastReload, setLastReload] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [releaseUrl, setReleaseUrl] = useState(DEFAULT_RELEASE_URL);
   const [installResult, setInstallResult] = useState<{
     services: number;
     version: string;
   } | null>(null);
+  const [updateCheck, setUpdateCheck] = useState<UpdateCheck | null>(null);
 
   const refetch = async () => {
     try {
@@ -186,6 +199,29 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
     }
   };
 
+  const checkForUpdates = async () => {
+    setChecking(true);
+    setUpdateCheck(null);
+    setError(null);
+    try {
+      const res = await fetch(CHECK_UPDATES_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ base_url: releaseUrl }),
+      });
+      const body = await res.json();
+      if (!res.ok || !body.ok) {
+        setError(body.error ?? `HTTP ${res.status}`);
+      } else {
+        setUpdateCheck(body);
+      }
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setChecking(false);
+    }
+  };
+
   const installFromRemote = async () => {
     setInstalling(true);
     setInstallResult(null);
@@ -204,6 +240,7 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
           services: body.installed_services,
           version: body.catalog_version,
         });
+        setUpdateCheck(null);
         await refetch();
       }
     } catch (e) {
@@ -291,6 +328,72 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
             placeholder="https://.../releases/latest/download/"
           />
         </label>
+
+        {updateCheck && (
+          <div className="updates-check">
+            <div className="updates-check__row">
+              <span className="catalog-meta">Installed</span>
+              <strong>
+                {formatCatalogVersion(updateCheck.installed_version)}
+              </strong>
+            </div>
+            <div className="updates-check__row">
+              <span className="catalog-meta">Available</span>
+              <strong>
+                {formatCatalogVersion(updateCheck.available_version)}
+              </strong>
+            </div>
+            {updateCheck.is_newer && (
+              <p className="updates-check__verdict updates-check__verdict--newer">
+                A newer release is available.
+              </p>
+            )}
+            {updateCheck.same && (
+              <p className="updates-check__verdict">
+                You're already on the latest release.
+              </p>
+            )}
+            {!updateCheck.is_newer && !updateCheck.same && (
+              <p className="updates-check__verdict">
+                Installed catalog is newer than the remote — nothing to do.
+              </p>
+            )}
+            {(updateCheck.updates.length > 0 ||
+              updateCheck.adds.length > 0) && (
+              <>
+                {updateCheck.updates.length > 0 && (
+                  <div>
+                    <div className="eyebrow">
+                      {updateCheck.updates.length} updated
+                    </div>
+                    <ul className="updates-check__list">
+                      {updateCheck.updates.map((u) => (
+                        <li key={u.name}>
+                          <code>{u.name}</code> · {u.from} → {u.to}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {updateCheck.adds.length > 0 && (
+                  <div>
+                    <div className="eyebrow">
+                      {updateCheck.adds.length} new
+                    </div>
+                    <ul className="updates-check__list">
+                      {updateCheck.adds.map((a) => (
+                        <li key={a.name}>
+                          <code>{a.name}</code> · {a.handler_version}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
         <div className="updates-install__actions">
           {installResult && (
             <span className="catalog-meta">
@@ -300,11 +403,27 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
           )}
           {error && <span className="error-text">{error}</span>}
           <button
+            className="btn"
+            onClick={checkForUpdates}
+            disabled={checking || !releaseUrl}
+          >
+            {checking ? "Checking…" : "Check for updates"}
+          </button>
+          <button
             className="btn btn--primary"
             onClick={installFromRemote}
-            disabled={installing || !releaseUrl}
+            disabled={installing || !releaseUrl || updateCheck?.same}
+            title={
+              updateCheck?.same
+                ? "Already up to date"
+                : "Download and install the latest release"
+            }
           >
-            {installing ? "Installing…" : "Install latest release"}
+            {installing
+              ? "Installing…"
+              : updateCheck?.is_newer
+                ? `Update to ${formatCatalogVersion(updateCheck.available_version)}`
+                : "Install latest release"}
           </button>
         </div>
       </section>
