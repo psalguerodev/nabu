@@ -444,6 +444,8 @@ function JobDetailView({
   detail: JobDetail | null;
   placeholder: boolean;
 }) {
+  const [showInput, setShowInput] = useState(false);
+
   if (placeholder) {
     return (
       <section className="card jobs-detail">
@@ -488,6 +490,17 @@ function JobDetailView({
       </dl>
 
       {detail.error && <pre className="jobs-error">{detail.error}</pre>}
+
+      <div>
+        <button className="btn" onClick={() => setShowInput((v) => !v)}>
+          {showInput ? "Hide" : "Show"} input JSON
+        </button>
+        {showInput && (
+          <pre className="jobs-input">
+            {JSON.stringify(detail.params, null, 2)}
+          </pre>
+        )}
+      </div>
 
       {detail.result?.calculator_url && (
         <div className="jobs-result">

@@ -828,6 +828,20 @@ body,
   font-size: 12px;
 }
 
+.jobs-input {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  margin: 8px 0 0;
+  overflow: auto;
+  max-height: 320px;
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  color: var(--text);
+  white-space: pre;
+}
+
 .jobs-result {
   background: var(--accent-soft);
   border: 1px solid rgba(56, 224, 168, 0.25);
