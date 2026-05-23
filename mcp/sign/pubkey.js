@@ -6,6 +6,7 @@
 // replace the constant below, update the secret in the publisher
 // environment, and ship a new app build embedding the new pubkey.
 //
-// Current dev key — pre-production. Rotate before first real release.
+// Active Nabu release-signing public key.
+// Last rotation: 2026-05-23 (initial public push).
 export const NABU_PUBKEY_HEX =
-  "24037eac974fc20694c1341ec078c80882c4aa26636d62edd49ede90a84ca794";
+  "53ed4c30989ca4c8d530dd898fdb5e4bd63b68a057f588713013709e3db9b0a2";
