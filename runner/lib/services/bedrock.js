@@ -64,18 +64,25 @@ registerService("bedrock", async (page, config) => {
     }
   }
 
-  // Model settings
+  // Model settings.
+  // NOTE: The Bedrock config page can render one usage-settings block per
+  // enabled provider (Anthropic + Amazon), so these aria-labels are not
+  // unique on the page. We target the first matching field, which
+  // corresponds to the currently-selected provider's section (the other
+  // provider was just toggled off above, but its block may still be in the
+  // DOM until the page settles). Use .first() to satisfy Playwright strict
+  // mode.
   if (requestsPerMinute > 0) {
-    await page.getByRole("textbox", { name: "Average requests per minute" }).fill(String(requestsPerMinute));
+    await page.getByRole("textbox", { name: "Average requests per minute" }).first().fill(String(requestsPerMinute));
   }
   if (hoursPerDay > 0) {
-    await page.getByRole("textbox", { name: "Hours per day at this rate" }).fill(String(hoursPerDay));
+    await page.getByRole("textbox", { name: "Hours per day at this rate" }).first().fill(String(hoursPerDay));
   }
   if (inputTokensPerRequest > 0) {
-    await page.getByRole("textbox", { name: "Average input tokens per request" }).fill(String(inputTokensPerRequest));
+    await page.getByRole("textbox", { name: "Average input tokens per request" }).first().fill(String(inputTokensPerRequest));
   }
   if (outputTokensPerRequest > 0) {
-    await page.getByRole("textbox", { name: "Average output tokens per request" }).fill(String(outputTokensPerRequest));
+    await page.getByRole("textbox", { name: "Average output tokens per request" }).first().fill(String(outputTokensPerRequest));
   }
 
   await page.keyboard.press("Tab");

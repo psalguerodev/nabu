@@ -63,7 +63,7 @@ export async function createEstimate(services, options = {}) {
           } else {
             await page.goto(CALCULATOR_URL, { waitUntil: "networkidle", timeout: 60000 });
           }
-          await page.locator("text=Estimate summary").waitFor({ timeout: 45000 });
+          await waitForSummary(page, i, services.length);
           state = "summary";
         }
 
@@ -73,11 +73,7 @@ export async function createEstimate(services, options = {}) {
           // The chatbot widget can prevent networkidle from settling, so use
           // domcontentloaded and explicitly hide the widget afterwards.
           await page.reload({ waitUntil: "domcontentloaded", timeout: 30000 });
-          await page.evaluate(() => {
-            document.querySelectorAll("#chatbot-wrapper, [class*='notificationBubbleChatIcon']").forEach((el) => {
-              el.style.display = "none";
-            });
-          });
+          await hideChatbot(page);
           await page.waitForTimeout(1500);
           await createGroup(page, svc.group);
           createdGroups.add(svc.group);
@@ -139,19 +135,26 @@ export async function createEstimate(services, options = {}) {
       const nextIsSameGroup = nextSvc && svc.group && nextSvc.group === svc.group;
 
       if (isLast) {
+        await hideChatbot(page);
         await clickVisible(page, "Save and view summary");
-        await page.locator("text=Estimate summary").waitFor({ timeout: 45000 });
+        await page.waitForLoadState("domcontentloaded").catch(() => {});
+        await page.waitForTimeout(750);
+        await waitForSummary(page, i, services.length);
         state = "summary";
       } else if (nextIsSameGroup) {
         // Same group next: save and stay on Add Service page
+        await hideChatbot(page);
         await clickVisible(page, "Save and add service");
         // Wait for Add Service page to reload
         await page.getByRole("searchbox", { name: "Find Service" }).waitFor({ timeout: 15000 });
         state = "addService";
       } else {
         // Different group next: save and go back to summary
+        await hideChatbot(page);
         await clickVisible(page, "Save and view summary");
-        await page.locator("text=Estimate summary").waitFor({ timeout: 45000 });
+        await page.waitForLoadState("domcontentloaded").catch(() => {});
+        await page.waitForTimeout(750);
+        await waitForSummary(page, i, services.length);
         state = "summary";
       }
     }
@@ -166,6 +169,46 @@ export async function createEstimate(services, options = {}) {
     await page.screenshot({ path: "/tmp/aws-calc-error.png" });
     await browser.close();
     throw err;
+  }
+}
+
+async function hideChatbot(page) {
+  await page.evaluate(() => {
+    document.querySelectorAll("#chatbot-wrapper, [class*='notificationBubbleChatIcon']").forEach((el) => {
+      try { el.style.display = "none"; } catch (_) {}
+    });
+  }).catch(() => {});
+}
+
+async function waitForSummary(page, index, total) {
+  const iter = `${index + 1}/${total}`;
+  try {
+    await page.locator("text=Estimate summary").waitFor({ timeout: 30000 });
+    return;
+  } catch (_) {
+    // Fallback: snapshot + try to recover by hiding chatbot and clicking breadcrumb.
+    try {
+      await page.screenshot({ path: "/tmp/nabu-summary-stuck.png", fullPage: true });
+    } catch (_) {}
+    await hideChatbot(page);
+    try {
+      const breadcrumb = page
+        .getByRole("link", { name: "My Estimate" })
+        .or(page.getByRole("link", { name: /Estimate summary/i }))
+        .or(page.locator('nav[aria-label*="readcrumb"] a').last());
+      if (await breadcrumb.first().isVisible({ timeout: 2000 }).catch(() => false)) {
+        await breadcrumb.first().click().catch(() => {});
+      }
+    } catch (_) {}
+    try {
+      await page.locator("text=Estimate summary").waitFor({ timeout: 30000 });
+      return;
+    } catch (err) {
+      throw new Error(
+        `Timed out waiting for "Estimate summary" after saving service ${iter}. ` +
+        `Screenshot at /tmp/nabu-summary-stuck.png. Original: ${err.message}`
+      );
+    }
   }
 }
 
