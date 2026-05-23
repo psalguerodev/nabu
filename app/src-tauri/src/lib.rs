@@ -1,10 +1,14 @@
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
 use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 const MCP_SERVER_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../mcp/server.js");
+const BRIDGE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../bridge/bridge.js");
 const MCP_PORT: u16 = 7531;
 const DB_FILE: &str = "nabu.db";
 const SETTINGS_DB_URL: &str = "sqlite:nabu.db";
@@ -34,6 +38,165 @@ fn migrations() -> Vec<Migration> {
     }]
 }
 
+// ---------------------------------------------------------------------------
+// Claude Desktop config integration
+//
+// Claude Desktop reads its MCP server list from a JSON file located at:
+//   macOS:    ~/Library/Application Support/Claude/claude_desktop_config.json
+//   Windows:  %APPDATA%/Claude/claude_desktop_config.json
+//   Linux:    $XDG_CONFIG_HOME/Claude/claude_desktop_config.json
+//             (typically ~/.config/Claude/claude_desktop_config.json)
+//
+// The shape we manage is:
+//   { "mcpServers": { "nabu": { "command": "node", "args": [<bridge path>] } } }
+
+#[derive(Serialize)]
+struct ClaudeConfigStatus {
+    os: String,
+    config_path: String,
+    config_exists: bool,
+    bridge_path: String,
+    installed: bool,
+    current_entry: Option<Value>,
+}
+
+fn claude_config_path() -> Result<PathBuf, String> {
+    let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"));
+    if cfg!(target_os = "macos") {
+        let h = home.map_err(|_| "no HOME env var".to_string())?;
+        Ok(PathBuf::from(h)
+            .join("Library")
+            .join("Application Support")
+            .join("Claude")
+            .join("claude_desktop_config.json"))
+    } else if cfg!(target_os = "windows") {
+        let appdata = std::env::var("APPDATA").map_err(|_| "no APPDATA env var".to_string())?;
+        Ok(PathBuf::from(appdata)
+            .join("Claude")
+            .join("claude_desktop_config.json"))
+    } else {
+        let h = home.map_err(|_| "no HOME env var".to_string())?;
+        let xdg = std::env::var("XDG_CONFIG_HOME").ok();
+        let base = match xdg {
+            Some(v) if !v.is_empty() => PathBuf::from(v),
+            _ => PathBuf::from(h).join(".config"),
+        };
+        Ok(base.join("Claude").join("claude_desktop_config.json"))
+    }
+}
+
+fn os_label() -> &'static str {
+    if cfg!(target_os = "macos") {
+        "macOS"
+    } else if cfg!(target_os = "windows") {
+        "Windows"
+    } else if cfg!(target_os = "linux") {
+        "Linux"
+    } else {
+        "unknown"
+    }
+}
+
+fn read_config(path: &Path) -> Result<Value, String> {
+    if !path.exists() {
+        return Ok(json!({ "mcpServers": {} }));
+    }
+    let raw = fs::read_to_string(path).map_err(|e| e.to_string())?;
+    if raw.trim().is_empty() {
+        return Ok(json!({ "mcpServers": {} }));
+    }
+    serde_json::from_str(&raw).map_err(|e| format!("invalid JSON in {}: {}", path.display(), e))
+}
+
+fn nabu_entry() -> Value {
+    json!({
+        "command": "node",
+        "args": [BRIDGE_PATH],
+    })
+}
+
+#[tauri::command]
+fn claude_config_status() -> Result<ClaudeConfigStatus, String> {
+    let path = claude_config_path()?;
+    let exists = path.exists();
+    let config = if exists {
+        read_config(&path)?
+    } else {
+        json!({ "mcpServers": {} })
+    };
+    let current = config
+        .get("mcpServers")
+        .and_then(|m| m.get("nabu"))
+        .cloned();
+    let desired = nabu_entry();
+    let installed = current.as_ref() == Some(&desired);
+    Ok(ClaudeConfigStatus {
+        os: os_label().to_string(),
+        config_path: path.display().to_string(),
+        config_exists: exists,
+        bridge_path: BRIDGE_PATH.to_string(),
+        installed,
+        current_entry: current,
+    })
+}
+
+#[derive(Deserialize)]
+#[allow(dead_code)]
+struct InstallArgs {}
+
+#[tauri::command]
+fn claude_install() -> Result<ClaudeConfigStatus, String> {
+    let path = claude_config_path()?;
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let mut config = read_config(&path)?;
+
+    // Backup existing file once per change, suffix with .bak.<timestamp>.
+    if path.exists() {
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let backup = path.with_extension(format!("json.bak.{}", stamp));
+        fs::copy(&path, &backup).map_err(|e| e.to_string())?;
+    }
+
+    let servers = config
+        .as_object_mut()
+        .ok_or_else(|| "config root is not an object".to_string())?
+        .entry("mcpServers".to_string())
+        .or_insert_with(|| json!({}));
+    let servers_obj = servers
+        .as_object_mut()
+        .ok_or_else(|| "mcpServers is not an object".to_string())?;
+    servers_obj.insert("nabu".to_string(), nabu_entry());
+
+    let serialized = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+    fs::write(&path, serialized).map_err(|e| e.to_string())?;
+
+    claude_config_status()
+}
+
+#[tauri::command]
+fn claude_uninstall() -> Result<ClaudeConfigStatus, String> {
+    let path = claude_config_path()?;
+    if !path.exists() {
+        return claude_config_status();
+    }
+    let mut config = read_config(&path)?;
+    if let Some(servers) = config
+        .as_object_mut()
+        .and_then(|m| m.get_mut("mcpServers"))
+        .and_then(|m| m.as_object_mut())
+    {
+        servers.remove("nabu");
+    }
+    let serialized = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+    fs::write(&path, serialized).map_err(|e| e.to_string())?;
+    claude_config_status()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -43,6 +206,11 @@ pub fn run() {
                 .add_migrations(SETTINGS_DB_URL, migrations())
                 .build(),
         )
+        .invoke_handler(tauri::generate_handler![
+            claude_config_status,
+            claude_install,
+            claude_uninstall,
+        ])
         .setup(|app| {
             let data_dir = app
                 .path()

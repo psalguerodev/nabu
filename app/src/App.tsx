@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import "./App.css";
 import { loadSettings, saveSetting, type Settings } from "./settings";
 
@@ -813,30 +814,195 @@ function SettingsPanel() {
   }
 
   return (
-    <section className="card settings">
-      <label className="setting-row">
-        <span className="setting-label">Headless Playwright</span>
-        <input
-          type="checkbox"
-          checked={settings.headless}
-          onChange={(e) => update("headless", e.currentTarget.checked)}
-        />
-      </label>
+    <>
+      <section className="card settings">
+        <label className="setting-row">
+          <span className="setting-label">Headless Playwright</span>
+          <input
+            type="checkbox"
+            checked={settings.headless}
+            onChange={(e) => update("headless", e.currentTarget.checked)}
+          />
+        </label>
 
-      <label className="setting-row">
-        <span className="setting-label">Default AWS region</span>
-        <input
-          type="text"
-          value={settings.default_region}
-          onChange={(e) => update("default_region", e.currentTarget.value)}
-        />
-      </label>
+        <label className="setting-row">
+          <span className="setting-label">Default AWS region</span>
+          <input
+            type="text"
+            value={settings.default_region}
+            onChange={(e) => update("default_region", e.currentTarget.value)}
+          />
+        </label>
 
-      <div className="setting-row setting-row--readonly">
-        <span className="setting-label">MCP port</span>
-        <span className="setting-value">7531 (fixed in this milestone)</span>
-      </div>
-    </section>
+        <div className="setting-row setting-row--readonly">
+          <span className="setting-label">MCP port</span>
+          <span className="setting-value">7531 (fixed in this milestone)</span>
+        </div>
+      </section>
+
+      <ClaudeDesktopSetupCard />
+    </>
+  );
+}
+
+type ClaudeStatus = {
+  os: string;
+  config_path: string;
+  config_exists: boolean;
+  bridge_path: string;
+  installed: boolean;
+  current_entry: unknown | null;
+};
+
+function ClaudeDesktopSetupCard() {
+  const [status, setStatus] = useState<ClaudeStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [confirmInstall, setConfirmInstall] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+
+  const refresh = async () => {
+    try {
+      const s = await invoke<ClaudeStatus>("claude_config_status");
+      setStatus(s);
+      setError(null);
+    } catch (e) {
+      setError(String(e));
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  const install = async () => {
+    setBusy(true);
+    try {
+      const s = await invoke<ClaudeStatus>("claude_install");
+      setStatus(s);
+      setError(null);
+      setConfirmInstall(false);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const uninstall = async () => {
+    setBusy(true);
+    try {
+      const s = await invoke<ClaudeStatus>("claude_uninstall");
+      setStatus(s);
+      setError(null);
+      setConfirmRemove(false);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!status) {
+    return (
+      <section className="card">
+        <div className="eyebrow">Claude Desktop integration</div>
+        <p className="placeholder">
+          {error ? `Failed: ${error}` : "Loading…"}
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <section className="card claude-setup">
+        <header className="claude-setup__header">
+          <div>
+            <div className="eyebrow">Claude Desktop integration</div>
+            <h3 className="claude-setup__title">
+              {status.installed
+                ? "Nabu is wired into Claude Desktop"
+                : "Connect Claude Desktop to Nabu"}
+            </h3>
+          </div>
+          <span
+            className={`badge ${status.installed ? "badge--succeeded" : "badge--queued"}`}
+          >
+            {status.installed ? "installed" : "not installed"}
+          </span>
+        </header>
+
+        <p className="claude-setup__intro">
+          Nabu exposes its MCP tools to Claude Desktop through the local
+          stdio↔HTTP bridge. The button below merges a <code>nabu</code>{" "}
+          entry into Claude Desktop&apos;s{" "}
+          <code>mcpServers</code> config so you don&apos;t have to edit
+          the file by hand. Restart Claude Desktop after installing.
+        </p>
+
+        <dl className="claude-setup__meta">
+          <div>
+            <dt>operating system</dt>
+            <dd>{status.os}</dd>
+          </div>
+          <div>
+            <dt>config file</dt>
+            <dd className="claude-setup__path">
+              {status.config_path}
+              {!status.config_exists && (
+                <span className="catalog-meta"> · will be created</span>
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt>bridge entry point</dt>
+            <dd className="claude-setup__path">{status.bridge_path}</dd>
+          </div>
+        </dl>
+
+        <div className="claude-setup__actions">
+          {error && <span className="error-text">{error}</span>}
+          {status.installed ? (
+            <button
+              className="btn btn--danger"
+              onClick={() => setConfirmRemove(true)}
+              disabled={busy}
+            >
+              Remove from Claude Desktop
+            </button>
+          ) : (
+            <button
+              className="btn btn--primary"
+              onClick={() => setConfirmInstall(true)}
+              disabled={busy}
+            >
+              {busy ? "Working…" : "Install into Claude Desktop"}
+            </button>
+          )}
+        </div>
+      </section>
+
+      {confirmInstall && (
+        <ConfirmDialog
+          message={`This will add a "nabu" entry under mcpServers in ${status.config_path}. The existing file (if any) is backed up to <name>.bak.<timestamp>.json before writing.`}
+          confirmLabel="Install"
+          busy={busy}
+          onConfirm={install}
+          onCancel={() => setConfirmInstall(false)}
+        />
+      )}
+      {confirmRemove && (
+        <ConfirmDialog
+          message="Remove the nabu entry from Claude Desktop's config?"
+          confirmLabel="Remove"
+          danger
+          busy={busy}
+          onConfirm={uninstall}
+          onCancel={() => setConfirmRemove(false)}
+        />
+      )}
+    </>
   );
 }
 
