@@ -315,7 +315,7 @@ function extractCosts(html) {
   };
 }
 
-function getSearchName(service) {
+export function getSearchName(service) {
   const map = {
     ec2: "EC2", s3: "S3", lambda: "Lambda",
     "step-functions": "Step Functions", dynamodb: "DynamoDB",
@@ -338,7 +338,7 @@ function getSearchName(service) {
   return map[service] || service;
 }
 
-function getConfigPattern(service) {
+export function getConfigPattern(service) {
   const map = {
     ec2: "Amazon EC2", s3: "Amazon Simple Storage Service",
     lambda: "AWS Lambda", "step-functions": "AWS Step Functions",

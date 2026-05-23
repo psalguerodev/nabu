@@ -1,5 +1,29 @@
 export const id = "glue";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "textbox",
+    name: /Number of DPUs for Apache Spark job/,
+    label: "Spark DPUs textbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Duration for which Apache Spark ETL job runs/,
+    label: "Spark duration spinbutton",
+  },
+  {
+    role: "textbox",
+    name: /Number of DPUs for each provisioned interactive session/,
+    label: "interactive session DPUs textbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Duration for provisioned interactive sessions/,
+    label: "interactive session duration spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

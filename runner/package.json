@@ -10,7 +10,8 @@
     "nabu-runner": "./run.js"
   },
   "scripts": {
-    "start": "node run.js"
+    "start": "node run.js",
+    "health": "node health.js"
   },
   "dependencies": {
     "playwright": "^1.49.0"

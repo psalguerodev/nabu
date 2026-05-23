@@ -1,5 +1,31 @@
 export const id = "bedrock-agentcore";
 
+// Locators the handler() depends on. Used by the daily health check.
+// Only the always-on Runtime section is probed; sub-services (Gateway,
+// Browser Tools, Observability, etc.) are opt-in and skipped here.
+export const healthLocators = [
+  {
+    role: "textbox",
+    name: /Number of agent sessions per month/,
+    label: "Runtime sessions per month textbox",
+  },
+  {
+    role: "textbox",
+    name: /Average Session Duration/,
+    label: "Runtime average session duration textbox",
+  },
+  {
+    role: "textbox",
+    name: /Average vCPU/,
+    label: "Runtime average vCPU textbox",
+  },
+  {
+    role: "textbox",
+    name: /Average Session Memory/,
+    label: "Runtime session memory textbox",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

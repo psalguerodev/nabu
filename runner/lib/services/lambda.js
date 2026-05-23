@@ -1,5 +1,29 @@
 export const id = "lambda";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "radio",
+    name: "Lambda Function - Without Free Tier",
+    label: "Without Free Tier radio",
+  },
+  {
+    role: "spinbutton",
+    name: /Number of requests Value/,
+    label: "number of requests spinbutton",
+  },
+  {
+    role: "textbox",
+    name: /Duration of each request.*Enter duration/,
+    label: "duration of each request textbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Amount of memory allocated/,
+    label: "memory allocated spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

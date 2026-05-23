@@ -1,5 +1,19 @@
 export const id = "vpn";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "textbox",
+    name: /Number of Site-to-Site VPN Connections/,
+    label: "Site-to-Site VPN connections textbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Average duration for each connection Value/,
+    label: "average connection duration spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

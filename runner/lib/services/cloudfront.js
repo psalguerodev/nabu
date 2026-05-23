@@ -1,5 +1,41 @@
 export const id = "cloudfront";
 
+// Health check needs to flip the wizard to the Pay-as-you-go branch
+// before probing locators — the wizard opens on Flat Rate by default.
+export async function healthPrerequisite(page) {
+  await page
+    .getByRole("radio", { name: "Pay as you go" })
+    .click()
+    .catch(() => {});
+  await page.waitForTimeout(800);
+}
+
+// Locators the handler() depends on. Used by the daily health check.
+// Assumes the default pricingModel = "payg" (Pay as you go) branch; the
+// Flat Rate branch uses a different set of textboxes.
+export const healthLocators = [
+  {
+    role: "radio",
+    name: "Pay as you go",
+    label: "Pay as you go pricing radio",
+  },
+  {
+    role: "spinbutton",
+    name: /Data transfer out to internet Value/,
+    label: "data out to internet spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Data transfer out to origin Value/,
+    label: "data out to origin spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Number of requests \(HTTPS\) Value/,
+    label: "HTTPS requests spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

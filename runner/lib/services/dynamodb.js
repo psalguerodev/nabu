@@ -1,5 +1,34 @@
 export const id = "dynamodb";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "checkbox",
+    name: "DynamoDB provisioned capacity",
+    label: "provisioned capacity checkbox",
+  },
+  {
+    role: "checkbox",
+    name: "DynamoDB on-demand capacity",
+    label: "on-demand capacity checkbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Data storage size Value/,
+    label: "data storage size spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Baseline write rate Value/,
+    label: "baseline write rate spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Baseline read rate Value/,
+    label: "baseline read rate spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

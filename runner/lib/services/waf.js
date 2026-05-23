@@ -1,5 +1,29 @@
 export const id = "waf";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "spinbutton",
+    name: /Number of Web Access Control Lists/,
+    label: "Web ACLs spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Number of Rules added per Web ACL/,
+    label: "rules per ACL spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Number of Managed Rule Groups per Web ACL/,
+    label: "managed rule groups spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Number of web requests received/,
+    label: "web requests spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

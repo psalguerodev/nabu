@@ -1,5 +1,53 @@
 export const id = "sagemaker-async";
 
+// Health check must mirror the same three-toggle sequence the handler
+// uses to land on the Asynchronous Inference form (disable the two
+// notebook sub-features, enable Async Inference).
+export async function healthPrerequisite(page) {
+  await page.evaluate(() => {
+    const toggle = (dataId) => {
+      const wrap = document.querySelector(`[data-id="${dataId}"]`);
+      wrap?.querySelector('input[type="checkbox"]')?.click();
+    };
+    toggle("sageMakerStudioNotebooks");
+    toggle("sageMakerOnDemandNotebookInstances");
+    toggle("sageMakerAsynchronousInference");
+  });
+  await page.waitForTimeout(1200);
+}
+
+// Locators the handler() depends on. Used by the daily health check.
+// The Async section only renders after the SageMaker Asynchronous
+// Inference sub-checkbox is enabled; the locators below match labels
+// from that post-toggle form.
+export const healthLocators = [
+  {
+    role: "textbox",
+    name: /Number of models deployed/,
+    label: "models deployed textbox",
+  },
+  {
+    role: "textbox",
+    name: /Number of models per endpoint/,
+    label: "models per endpoint textbox",
+  },
+  {
+    role: "textbox",
+    name: /Number of instances per endpoint/,
+    label: "instances per endpoint textbox",
+  },
+  {
+    role: "textbox",
+    name: /Endpoint hour\(s\) per day/,
+    label: "endpoint hours per day textbox",
+  },
+  {
+    role: "combobox",
+    name: "Select an instance",
+    label: "instance type combobox",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

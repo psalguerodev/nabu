@@ -1,5 +1,29 @@
 export const id = "api-gateway";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "spinbutton",
+    name: /Requests Value/,
+    label: "HTTP/REST requests spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Average size of each request/,
+    label: "average request size spinbutton",
+  },
+  {
+    role: "button",
+    name: /Cache memory size/,
+    label: "cache memory size dropdown",
+  },
+  {
+    role: "spinbutton",
+    name: /Messages Value/,
+    label: "WebSocket messages spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

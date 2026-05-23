@@ -1,5 +1,19 @@
 export const id = "textract";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "textbox",
+    name: /Number of pages/,
+    label: "number of pages textbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Percent of pages with text \(Detect Document Text API\)/,
+    label: "percent with text spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

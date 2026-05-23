@@ -1,5 +1,35 @@
 export const id = "redshift";
 
+// Health check needs to flip the wizard to the Serverless branch
+// before probing locators — the wizard opens on Provisioned by default.
+export async function healthPrerequisite(page) {
+  await page
+    .getByRole("radio", { name: "Redshift Serverless" })
+    .click()
+    .catch(() => {});
+  await page.waitForTimeout(800);
+}
+
+// Locators the handler() depends on. Used by the daily health check.
+// Assumes the default mode = "serverless" branch.
+export const healthLocators = [
+  {
+    role: "radio",
+    name: "Redshift Serverless",
+    label: "Serverless mode radio",
+  },
+  {
+    role: "button",
+    name: /Base RPU/,
+    label: "Base RPU dropdown",
+  },
+  {
+    role: "textbox",
+    name: /Expected daily runtime/,
+    label: "expected daily runtime textbox",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

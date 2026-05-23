@@ -1,5 +1,20 @@
 export const id = "step-functions";
 
+// Locators the handler() depends on. Used by the daily health check.
+// Express Workflows checkbox is opt-in and excluded.
+export const healthLocators = [
+  {
+    role: "spinbutton",
+    name: /Workflow requests Value/,
+    label: "workflow requests spinbutton",
+  },
+  {
+    role: "textbox",
+    name: /State transitions per workflow/,
+    label: "state transitions textbox",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

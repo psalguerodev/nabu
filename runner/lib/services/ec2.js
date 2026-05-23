@@ -1,5 +1,30 @@
 export const id = "ec2";
 
+// Locators the handler() below depends on. Used by the daily health
+// check to detect calculator.aws UI drift — none of these are filled,
+// just probed for visibility.
+export const healthLocators = [
+  {
+    role: "spinbutton",
+    name: /Number of instances/,
+    label: "instances spinbutton",
+  },
+  {
+    role: "searchbox",
+    name: /Search instance types/,
+    label: "instance type searchbox",
+  },
+  {
+    css: "table[aria-label='EC2 selection']",
+    label: "instance selection table",
+  },
+  {
+    role: "radio",
+    name: "On-Demand",
+    label: "On-Demand pricing radio",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

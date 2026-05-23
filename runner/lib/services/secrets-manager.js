@@ -1,5 +1,25 @@
 export const id = "secrets-manager";
 
+// Locators the handler() depends on. Used by the daily health check.
+// Unit-switch dropdown (days/months) is skipped — only used on long durations.
+export const healthLocators = [
+  {
+    role: "textbox",
+    name: /Number of secrets/,
+    label: "number of secrets textbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Average duration of each secret/,
+    label: "average secret duration spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Number of API calls/,
+    label: "API calls spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

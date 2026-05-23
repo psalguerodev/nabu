@@ -1,5 +1,19 @@
 export const id = "athena";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "spinbutton",
+    name: /Total number of queries Value/,
+    label: "total queries spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Amount of data scanned per query Value/,
+    label: "data scanned per query spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

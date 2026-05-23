@@ -1,5 +1,59 @@
 export const id = "s3-vectors";
 
+// Health check must enable the S3 Vectors sub-feature before probing
+// locators — without the checkbox toggled the form fields don't render.
+export async function healthPrerequisite(page) {
+  await page.evaluate(() => {
+    const labels = Array.from(document.querySelectorAll("label, span"));
+    const node = labels.find((el) => el.textContent?.trim() === "S3 Vectors");
+    if (!node) return;
+    const wrap =
+      node.closest("[data-id]") || node.parentElement?.closest("[data-id]");
+    const input =
+      wrap?.querySelector('input[type="checkbox"]') ||
+      node.querySelector('input[type="checkbox"]');
+    input?.click();
+  });
+  await page.waitForTimeout(1000);
+}
+
+// Locators the handler() depends on. Used by the daily health check.
+// These appear only AFTER the "S3 Vectors" sub-checkbox is enabled at
+// runtime, so the health check probes the S3 service page (where the
+// S3 Vectors toggle lives) plus the post-toggle fields.
+export const healthLocators = [
+  {
+    role: "textbox",
+    name: /^Number of indexes/,
+    label: "number of indexes textbox",
+  },
+  {
+    role: "textbox",
+    name: /Number of vectors per index/,
+    label: "vectors per index textbox",
+  },
+  {
+    role: "textbox",
+    name: /Vector Dimensions/,
+    label: "vector dimensions textbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Filterable metadata \(KB\) per vector Value/,
+    label: "filterable metadata spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Key size \(KB\) per vector Value/,
+    label: "key size spinbutton",
+  },
+  {
+    role: "spinbutton",
+    name: /Total number of queries per month .* Value/,
+    label: "total queries spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

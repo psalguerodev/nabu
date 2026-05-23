@@ -1,5 +1,34 @@
 export const id = "cognito";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "radio",
+    name: "Cognito Lite Tier",
+    label: "Lite tier radio",
+  },
+  {
+    role: "radio",
+    name: "Cognito Essentials Tier",
+    label: "Essentials tier radio",
+  },
+  {
+    role: "radio",
+    name: "Cognito Plus Tier",
+    label: "Plus tier radio",
+  },
+  {
+    role: "textbox",
+    name: /Number of monthly active users \(MAU\) Enter/,
+    label: "MAU textbox",
+  },
+  {
+    role: "textbox",
+    name: /SAML or OIDC federation/,
+    label: "SAML/OIDC users textbox",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

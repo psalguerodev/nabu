@@ -1,5 +1,24 @@
 export const id = "appsync";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "checkbox",
+    name: "AppSync GraphQL Real-Time",
+    label: "Real-Time feature checkbox",
+  },
+  {
+    role: "checkbox",
+    name: "Appsync Data Transfer",
+    label: "Data Transfer feature checkbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Number of API Requests/,
+    label: "API requests spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

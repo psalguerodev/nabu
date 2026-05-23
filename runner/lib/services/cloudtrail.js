@@ -1,5 +1,34 @@
 export const id = "cloudtrail";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "button",
+    name: /^Management events units/,
+    label: "management events units dropdown",
+  },
+  {
+    role: "spinbutton",
+    name: /Number of management events Value/,
+    label: "management events spinbutton",
+  },
+  {
+    role: "textbox",
+    name: /^Management event trails$/,
+    label: "management event trails textbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Read management events Value/,
+    label: "read management events spinbutton",
+  },
+  {
+    role: "textbox",
+    name: /^Read management trails$/,
+    label: "read management trails textbox",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

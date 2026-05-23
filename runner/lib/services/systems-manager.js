@@ -1,5 +1,24 @@
 export const id = "systems-manager";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "textbox",
+    name: /Standard parameters/,
+    label: "standard parameters textbox",
+  },
+  {
+    role: "textbox",
+    name: /Advanced parameters/,
+    label: "advanced parameters textbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Frequency of API interactions/,
+    label: "API interactions spinbutton",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

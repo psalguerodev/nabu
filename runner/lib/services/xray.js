@@ -1,5 +1,29 @@
 export const id = "xray";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "textbox",
+    name: /Number of requests per month/,
+    label: "requests per month textbox",
+  },
+  {
+    role: "spinbutton",
+    name: /Sampling rate/,
+    label: "sampling rate spinbutton",
+  },
+  {
+    role: "textbox",
+    name: /Number of queries per month/,
+    label: "queries per month textbox",
+  },
+  {
+    role: "textbox",
+    name: /Traces retrieved per query/,
+    label: "traces per query textbox",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {

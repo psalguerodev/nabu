@@ -1,5 +1,38 @@
 export const id = "bedrock";
 
+// Locators the handler() depends on. Used by the daily health check.
+export const healthLocators = [
+  {
+    role: "checkbox",
+    name: "Anthropic",
+    label: "Anthropic provider checkbox",
+  },
+  {
+    role: "checkbox",
+    name: "Amazon",
+    label: "Amazon provider checkbox",
+  },
+  {
+    css: 'button[aria-haspopup="listbox"]',
+    label: "model selection listbox button",
+  },
+  {
+    role: "textbox",
+    name: "Average requests per minute",
+    label: "requests per minute textbox",
+  },
+  {
+    role: "textbox",
+    name: "Average input tokens per request",
+    label: "input tokens textbox",
+  },
+  {
+    role: "textbox",
+    name: "Average output tokens per request",
+    label: "output tokens textbox",
+  },
+];
+
 // Translate the catalog's snake_case params into the camelCase config
 // the Playwright handler below consumes. Keep this pure — no I/O.
 export function adapter(params) {
