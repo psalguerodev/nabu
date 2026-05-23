@@ -21,7 +21,7 @@
  *   NABU_HEALTH_TIMEOUT=4500  per-locator visibility timeout (ms)
  */
 import { chromium } from "playwright";
-import { readdir } from "node:fs/promises";
+import { readdir, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkLocators } from "./lib/health.js";
@@ -31,6 +31,8 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVICES_DIR = join(HERE, "lib", "services");
 const CALCULATOR_URL = "https://calculator.aws/#/createCalculator";
 const BLOCKED_RESOURCE_TYPES = ["image", "media", "font"];
+const REPORT_DIR =
+  process.env.NABU_HEALTH_REPORT_DIR || join(HERE, "..", "artifacts", "health");
 
 function emit(event) {
   process.stdout.write(JSON.stringify(event) + "\n");
@@ -84,6 +86,41 @@ async function openServiceWizard(page, service) {
     page.getByRole("textbox", { name: "Description" }).waitFor({ timeout: 20000 }),
     page.getByRole("button", { name: "Save and view summary" }).waitFor({ timeout: 20000 }),
   ]);
+}
+
+// Snapshot every interactive control visible on the current page along with
+// its accessible name. Maintainers compare this against the missing-locator
+// list to figure out which field AWS renamed/reorganized.
+async function snapshotInputs(page) {
+  return page.evaluate(() => {
+    const selector =
+      'input, textarea, [role="radio"], [role="checkbox"], [role="combobox"], [role="spinbutton"], [role="searchbox"], button';
+    const out = [];
+    const seen = new Set();
+    for (const el of document.querySelectorAll(selector)) {
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      let label = el.getAttribute("aria-label") || "";
+      if (!label) {
+        const id = el.getAttribute("id");
+        if (id) {
+          const lbl = document.querySelector(`label[for="${id}"]`);
+          if (lbl) label = lbl.textContent?.trim() ?? "";
+        }
+      }
+      if (!label) label = el.getAttribute("placeholder") || "";
+      if (!label && el.tagName === "BUTTON")
+        label = el.textContent?.trim() ?? "";
+      if (!label) continue;
+      const trimmed = label.replace(/\s+/g, " ").slice(0, 100);
+      const role = el.getAttribute("role") || el.tagName.toLowerCase();
+      const key = `${role}::${trimmed}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ role, label: trimmed });
+    }
+    return out;
+  });
 }
 
 async function cancelWizard(page) {
@@ -152,6 +189,19 @@ async function main() {
           checked: mod.healthLocators.length,
           duration_ms: Date.now() - started,
         };
+        // Capture diagnostic context only when something failed — keeps
+        // the artifact small on a clean day.
+        if (!ok) {
+          await mkdir(REPORT_DIR, { recursive: true }).catch(() => {});
+          const shotPath = join(REPORT_DIR, `${service}.png`);
+          try {
+            await page.screenshot({ path: shotPath, fullPage: true });
+            ev.screenshot = shotPath;
+          } catch {}
+          try {
+            ev.visible_inputs = await snapshotInputs(page);
+          } catch {}
+        }
         results.push(ev);
         emit({ type: "service", ...ev });
       } catch (err) {
@@ -161,6 +211,12 @@ async function main() {
           error: `wizard_open_failed: ${err.message?.slice(0, 200)}`,
           duration_ms: Date.now() - started,
         };
+        try {
+          await mkdir(REPORT_DIR, { recursive: true }).catch(() => {});
+          const shotPath = join(REPORT_DIR, `${service}.png`);
+          await page.screenshot({ path: shotPath, fullPage: true });
+          ev.screenshot = shotPath;
+        } catch {}
         results.push(ev);
         emit({ type: "service", ...ev });
       }

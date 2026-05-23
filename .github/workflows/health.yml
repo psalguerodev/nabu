@@ -48,8 +48,9 @@ jobs:
         id: probe
         env:
           SERVICES: ${{ github.event.inputs.services }}
+          NABU_HEALTH_REPORT_DIR: ${{ github.workspace }}/artifacts/health
         run: |
-          mkdir -p artifacts
+          mkdir -p artifacts/health
           set +e
           # SERVICES comes from env so injection-safe.
           # shellcheck disable=SC2086
@@ -90,18 +91,35 @@ jobs:
 
             const today = new Date().toISOString().slice(0, 10);
             const title = `Catalog health: ${degraded.length} service(s) degraded (${today})`;
-            const lines_md = degraded.map(
-              (s) =>
-                `- **${s.service}**: ${s.error ?? "missing " + (s.missing ?? []).join(", ")}`,
-            );
+            const runUrl =
+              `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${context.runId}`;
+            const sections = degraded.map((s) => {
+              const header = `### ${s.service}`;
+              const reason = s.error
+                ? `**Error:** \`${s.error}\``
+                : `**Missing locators:**\n${(s.missing ?? [])
+                    .map((m) => `- \`${m}\``)
+                    .join("\n")}`;
+              const inputs = (s.visible_inputs ?? [])
+                .slice(0, 30)
+                .map((i) => `- \`${i.role}\` · ${i.label}`)
+                .join("\n");
+              const inputsBlock = inputs
+                ? `\n**Currently visible inputs on the wizard** (top 30, for cross-reference):\n${inputs}`
+                : "";
+              const shot = s.screenshot
+                ? `\nScreenshot: \`artifacts/health/${s.service}.png\` (in the run artifacts).`
+                : "";
+              return `${header}\n${reason}${inputsBlock}${shot}`;
+            });
             const body = [
               `Ran at: ${report?.ran_at ?? "?"}`,
               `Total checked: ${report?.total ?? "?"} · ok: ${report?.ok ?? "?"} · degraded: ${report?.degraded ?? "?"}`,
+              `Workflow run: ${runUrl}`,
               "",
-              "Degraded services:",
-              ...lines_md,
-              "",
-              "Full report is attached as an artifact on this workflow run.",
+              "---",
+              ...sections,
             ].join("\n");
 
             const { data: existing } = await github.rest.issues.listForRepo({
