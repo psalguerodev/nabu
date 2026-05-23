@@ -40,9 +40,17 @@ export async function handler(page, config) {
     await page.getByRole("spinbutton", { name: /Duration for which Python Shell job ETL runs/ }).fill(String(pythonShellMinutesPerMonth));
   }
 
-  // Interactive sessions section is required when the feature is checked; fill minimal placeholders
-  await page.getByRole("textbox", { name: /Number of DPUs for each provisioned interactive session/ }).fill(String(interactiveDpus));
-  await page.getByRole("spinbutton", { name: /Duration for provisioned interactive sessions/ }).fill(String(interactiveMinutesPerMonth));
+  // The Interactive sessions block is expanded by default and the calculator
+  // rejects DPU < 2 / duration < 1 with inline validation. If the caller did
+  // not opt into interactive sessions (value 0), leave the UI defaults alone
+  // — they amount to a few cents per month and let Save and view summary go
+  // through. Only fill when the caller explicitly passed a usable value.
+  if (interactiveDpus >= 2) {
+    await page.getByRole("textbox", { name: /Number of DPUs for each provisioned interactive session/ }).fill(String(interactiveDpus));
+  }
+  if (interactiveMinutesPerMonth >= 1) {
+    await page.getByRole("spinbutton", { name: /Duration for provisioned interactive sessions/ }).fill(String(interactiveMinutesPerMonth));
+  }
 
   await page.keyboard.press("Tab");
   await page.waitForTimeout(500);
