@@ -412,18 +412,27 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
           <button
             className="btn btn--primary"
             onClick={installFromRemote}
-            disabled={installing || !releaseUrl || updateCheck?.same}
+            disabled={
+              installing ||
+              !releaseUrl ||
+              !updateCheck ||
+              !updateCheck.is_newer
+            }
             title={
-              updateCheck?.same
-                ? "Already up to date"
-                : "Download and install the latest release"
+              !updateCheck
+                ? "Check for updates first to see what would change"
+                : updateCheck.same
+                  ? "Already up to date"
+                  : !updateCheck.is_newer
+                    ? "Installed catalog is newer than the remote"
+                    : "Download and install the latest release"
             }
           >
             {installing
               ? "Installing…"
               : updateCheck?.is_newer
                 ? `Update to ${formatCatalogVersion(updateCheck.available_version)}`
-                : "Install latest release"}
+                : "Install"}
           </button>
         </div>
       </section>
