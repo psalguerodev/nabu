@@ -198,7 +198,7 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
         setError(body.error ?? `HTTP ${res.status}`);
       } else {
         setInstallResult(
-          `Installed ${body.installed_services} service(s) at ${body.catalog_version}`,
+          `Installed ${body.installed_services} service(s) at ${formatCatalogVersion(body.catalog_version)}`,
         );
         await refetch();
       }
@@ -239,7 +239,9 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
       <div className="services-toolbar">
         <div>
           <div className="eyebrow">Active catalog</div>
-          <div className="updates-version">{catalogVersion}</div>
+          <div className="updates-version">
+            {formatCatalogVersion(catalogVersion)}
+          </div>
         </div>
         <div className="updates-actions">
           {lastReload && (
@@ -766,6 +768,24 @@ function JobDetailView({
   );
 }
 
+function formatCatalogVersion(raw: string | null | undefined): string {
+  if (!raw) return "—";
+  const plus = raw.indexOf("+");
+  if (plus === -1) return raw;
+  const base = raw.slice(0, plus);
+  const suffix = raw.slice(plus + 1);
+  const date = new Date(suffix);
+  if (Number.isNaN(date.getTime())) return raw;
+  const fmt = date.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  return `${base} · ${fmt}`;
+}
+
 function formatRelative(ts: number): string {
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60) return `${s}s ago`;
@@ -1161,7 +1181,7 @@ function ServicesPanel({ mcpUp }: { mcpUp: boolean }) {
           onChange={(e) => setQuery(e.currentTarget.value)}
         />
         <span className="catalog-meta">
-          catalog <strong>{catalogVersion}</strong> · showing {filtered.length}
+          catalog <strong>{formatCatalogVersion(catalogVersion)}</strong> · showing {filtered.length}
           /{services.length}
         </span>
       </div>
@@ -1336,7 +1356,9 @@ function formatType(prop: JsonSchemaProperty): string {
 function renderStatus(s: McpStatus): string {
   if (s.state === "checking") return "MCP · checking…";
   if (s.state === "up") {
-    const cat = s.catalogVersion ? ` · catalog ${s.catalogVersion}` : "";
+    const cat = s.catalogVersion
+      ? ` · catalog ${formatCatalogVersion(s.catalogVersion)}`
+      : "";
     return `MCP · ${s.name} v${s.version}${cat} · :7531`;
   }
   return `MCP · offline (${s.reason})`;
