@@ -146,7 +146,10 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
   const [lastReload, setLastReload] = useState<string | null>(null);
   const [installing, setInstalling] = useState(false);
   const [releaseUrl, setReleaseUrl] = useState(DEFAULT_RELEASE_URL);
-  const [installResult, setInstallResult] = useState<string | null>(null);
+  const [installResult, setInstallResult] = useState<{
+    services: number;
+    version: string;
+  } | null>(null);
 
   const refetch = async () => {
     try {
@@ -197,9 +200,10 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
       if (!res.ok || !body.ok) {
         setError(body.error ?? `HTTP ${res.status}`);
       } else {
-        setInstallResult(
-          `Installed ${body.installed_services} service(s) at ${formatCatalogVersion(body.catalog_version)}`,
-        );
+        setInstallResult({
+          services: body.installed_services,
+          version: body.catalog_version,
+        });
         await refetch();
       }
     } catch (e) {
@@ -289,7 +293,10 @@ function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {
         </label>
         <div className="updates-install__actions">
           {installResult && (
-            <span className="catalog-meta">{installResult}</span>
+            <span className="catalog-meta">
+              Installed {installResult.services} service(s) at{" "}
+              {formatCatalogVersion(installResult.version)}
+            </span>
           )}
           {error && <span className="error-text">{error}</span>}
           <button
