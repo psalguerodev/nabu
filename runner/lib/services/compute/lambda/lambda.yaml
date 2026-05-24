@@ -14,7 +14,7 @@
 # =============================================================================
 
 service: lambda
-version: 0.2.0
+version: 0.2.1
 
 meta:
   name: AWS Lambda
@@ -114,7 +114,9 @@ flow:
     when: "memory_mb > 0"
 
   - { action: press_key, key: "Tab" }
-  - { action: wait_ms, ms: 500 }
+  # Lambda recalculation needs >500ms before save; 500ms caused the wizard
+  # to persist with duration/memory uncommitted, producing $0 estimates.
+  - { action: wait_ms, ms: 3000 }
 
 health_locators:
   # Radio role is stable across platforms.

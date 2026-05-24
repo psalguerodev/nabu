@@ -13,7 +13,7 @@
 # =============================================================================
 
 service: s3
-version: 0.2.0
+version: 0.2.1
 
 meta:
   name: Amazon S3
@@ -64,7 +64,7 @@ fields:
     description: PUT, COPY, POST, LIST requests per month against S3 Standard.
     ui:
       kind: number
-      locator: { css: 'input[aria-label^="PUT, COPY, POST, LIST requests to S3 Standard"]' }
+      locator: { css: 'input[aria-label*="to S3 Standard Enter"]' }
 
   - id: get_requests_per_month
     type: integer
@@ -73,7 +73,7 @@ fields:
     description: GET, SELECT, and all other requests per month from S3 Standard.
     ui:
       kind: number
-      locator: { css: 'input[aria-label^="GET, SELECT, and all other requests from S3 Standard"]' }
+      locator: { css: 'input[aria-label*="from S3 Standard Enter"]' }
 
 flow:
   - apply: storage_gb
@@ -90,5 +90,5 @@ flow:
 
 health_locators:
   - { css: 'input[aria-label^="S3 Standard storage"]', label: "S3 Standard storage input" }
-  - { css: 'input[aria-label^="PUT, COPY, POST, LIST requests to S3 Standard"]', label: "PUT requests input" }
-  - { css: 'input[aria-label^="GET, SELECT, and all other requests from S3 Standard"]', label: "GET requests input" }
+  - { css: 'input[aria-label*="to S3 Standard Enter"]', label: "PUT requests input" }
+  - { css: 'input[aria-label*="from S3 Standard Enter"]', label: "GET requests input" }
