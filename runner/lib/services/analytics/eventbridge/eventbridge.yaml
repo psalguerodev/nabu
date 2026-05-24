@@ -1,0 +1,63 @@
+# =============================================================================
+# Amazon EventBridge — service datasheet
+# =============================================================================
+# Migrated from the imperative analytics/eventbridge/index.js handler (v0.1.1).
+# Two scalar inputs surfaced by the v0.1 handler:
+#   - Number of custom events (MILLIONS per month — calculator default unit)
+#   - Size of the payload (KB)
+#
+# Legacy gotcha: the wizard's "million per month" spinbutton rejects decimals,
+# so the imperative handler ceiled sub-million values up to 1. With the
+# declarative interpreter we rely on the catalog schema (integer) to enforce
+# whole numbers at the boundary — callers must pre-round.
+# =============================================================================
+
+service: eventbridge
+version: 0.2.0
+
+meta:
+  name: Amazon EventBridge
+  search: EventBridge
+  config_pattern: "Amazon EventBridge"
+  category: analytics
+  description: |
+    EventBridge custom events pricing. Surfaces custom events per month
+    (in millions) and payload size (KB).
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: custom_events
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of custom events per month (in MILLIONS — calculator default unit).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Number of custom events Value" } }
+
+  - id: payload_size_kb
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    description: Size of the payload in KB.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Size of the payload Value" } }
+
+flow:
+  - apply: payload_size_kb
+    when: "payload_size_kb != 1"
+  - apply: custom_events
+    when: "custom_events > 0"
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: spinbutton, name: { regex: "Size of the payload Value" }, label: "payload size spinbutton" }
+  - { role: spinbutton, name: { regex: "Number of custom events Value" }, label: "custom events spinbutton" }

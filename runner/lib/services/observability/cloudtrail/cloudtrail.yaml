@@ -1,0 +1,211 @@
+# =============================================================================
+# AWS CloudTrail — service datasheet
+# =============================================================================
+# Migrated from the imperative observability/cloudtrail/index.js handler
+# (v0.1.0). The wizard exposes 5 sections (Management, Data, Network Activity,
+# Insight Events, CloudTrail Lake). We model the three covered by v0.1:
+#   - Management events
+#   - Data events (S3 + Lambda)
+#   - Network activity events
+#
+# Each of the three sections starts with a "units" dropdown whose wizard
+# default is "Millions". Pricing math is per-event, so the v0.1 handler always
+# flipped each touched section's dropdown to "Exact number" before filling
+# the count. We model that as an enum field with the same semantic and a
+# `when:` guard that mirrors when the legacy handler bothered to switch it.
+#
+# Note: v0.1 also hid the chatbot widget via page.evaluate for stale-state
+# robustness when CloudTrail ran last in a long sequence. The declarative
+# interpreter has no JS-eval primitive; dropped on migration — the select
+# helper opens via role=button which isn't shadowed by the chatbot overlay.
+# =============================================================================
+
+service: cloudtrail
+version: 0.2.0
+
+meta:
+  name: AWS CloudTrail
+  search: CloudTrail
+  config_pattern: "AWS CloudTrail"
+  category: observability
+  description: |
+    CloudTrail event ingestion pricing. Covers Management, Data (S3 +
+    Lambda) and Network Activity events. Each section's count is paired
+    with a trail multiplier; the units dropdown is flipped to "Exact
+    number" so counts are interpreted as raw events/month.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  # ---- Management events -------------------------------------------------
+  - id: mgmt_events_units
+    type: enum
+    default: exact_number
+    description: Units selector for "Number of management events". Wizard default Millions; we always switch.
+    options:
+      - { value: millions,     label: "Millions" }
+      - { value: exact_number, label: "Exact number", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Management events units" } }
+
+  - id: mgmt_events
+    type: integer
+    default: 5000
+    constraints: { min: 0 }
+    description: Number of management events per month.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Number of management events Value" } }
+
+  - id: mgmt_trails
+    type: integer
+    default: 3
+    constraints: { min: 0 }
+    description: Number of trails delivering management events.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "^Management event trails$" } }
+
+  - id: read_mgmt_events
+    type: integer
+    default: 1
+    constraints: { min: 0 }
+    description: Number of read management events per month.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Read management events Value" } }
+
+  - id: read_mgmt_trails
+    type: integer
+    default: 1
+    constraints: { min: 0 }
+    description: Number of trails delivering read management events.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "^Read management trails$" } }
+
+  # ---- Data events: S3 + Lambda -----------------------------------------
+  - id: data_events_units
+    type: enum
+    default: exact_number
+    description: Units selector for data-event counts (S3 + Lambda). Applied only when any data-event count > 0.
+    options:
+      - { value: millions,     label: "Millions" }
+      - { value: exact_number, label: "Exact number", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Data events units" } }
+
+  - id: s3_operations
+    type: integer
+    default: 20000
+    constraints: { min: 0 }
+    description: Number of S3 data-event operations per month.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "S3 operations Value" } }
+
+  - id: s3_trails
+    type: integer
+    default: 3
+    constraints: { min: 0 }
+    description: Number of trails delivering S3 data events.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "^S3 trails$" } }
+
+  - id: lambda_events
+    type: integer
+    default: 10
+    constraints: { min: 0 }
+    description: Number of Lambda data events per month.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Lambda data events Value" } }
+
+  - id: lambda_trails
+    type: integer
+    default: 1
+    constraints: { min: 0 }
+    description: Number of trails delivering Lambda data events.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "^Lambda trails$" } }
+
+  # ---- Network activity events ------------------------------------------
+  - id: network_events_units
+    type: enum
+    default: exact_number
+    description: Units selector for network-activity-event counts. Applied only when network_events > 0.
+    options:
+      - { value: millions,     label: "Millions" }
+      - { value: exact_number, label: "Exact number", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Network activity events units" } }
+
+  - id: network_events
+    type: integer
+    default: 5000
+    constraints: { min: 0 }
+    description: Number of network activity events per month.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Number of network activity events Value" } }
+
+  - id: network_trails
+    type: integer
+    default: 1
+    constraints: { min: 0 }
+    description: Number of trails delivering network activity events.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "^Network activity event trails$" } }
+
+flow:
+  # Management events — always applied (legacy handler unconditionally fills).
+  - apply: mgmt_events_units
+  - apply: mgmt_events
+  - apply: mgmt_trails
+  - apply: read_mgmt_events
+  - apply: read_mgmt_trails
+
+  # Data events (S3 + Lambda) — only when at least one count is non-zero,
+  # mirroring the legacy guard `s3Operations > 0 || lambdaEvents > 0`.
+  - apply: data_events_units
+    when: "s3_operations > 0 || lambda_events > 0"
+  - apply: s3_operations
+    when: "s3_operations > 0"
+  - apply: s3_trails
+    when: "s3_operations > 0"
+  - apply: lambda_events
+    when: "lambda_events > 0"
+  - apply: lambda_trails
+    when: "lambda_events > 0"
+
+  # Network activity events — only when count is non-zero.
+  - apply: network_events_units
+    when: "network_events > 0"
+  - apply: network_events
+    when: "network_events > 0"
+  - apply: network_trails
+    when: "network_events > 0"
+
+  - { action: press_key, key: "Tab" }
+  # 3000ms because CloudTrail often runs last in long multi-service chains
+  # and the recalc needs to settle before "Save and add service" fires
+  # (same precedent as lambda / xray).
+  - { action: wait_ms, ms: 3000 }
+
+health_locators:
+  - { role: button, name: { regex: "^Management events units" }, label: "management events units dropdown" }
+  - { role: spinbutton, name: { regex: "Number of management events Value" }, label: "management events spinbutton" }
+  - { role: textbox, name: { regex: "^Management event trails$" }, label: "management event trails textbox" }
+  - { role: spinbutton, name: { regex: "Read management events Value" }, label: "read management events spinbutton" }
+  - { role: textbox, name: { regex: "^Read management trails$" }, label: "read management trails textbox" }
