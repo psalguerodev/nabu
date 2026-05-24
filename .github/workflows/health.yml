@@ -49,6 +49,7 @@ jobs:
         env:
           SERVICES: ${{ github.event.inputs.services }}
           NABU_HEALTH_REPORT_DIR: ${{ github.workspace }}/artifacts/health
+          NABU_HEALTH_TIMEOUT: "4500"
         run: |
           mkdir -p artifacts/health
           set +e

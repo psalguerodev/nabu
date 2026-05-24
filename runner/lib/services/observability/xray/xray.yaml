@@ -13,7 +13,7 @@
 # =============================================================================
 
 service: xray
-version: 0.2.0
+version: 0.2.1
 
 meta:
   name: AWS X-Ray
@@ -78,7 +78,11 @@ flow:
   - apply: traces_per_query
     when: "traces_per_query != 100"
   - { action: press_key, key: "Tab" }
-  - { action: wait_ms, ms: 500 }
+  # In multi-service chains the 500ms gap let "Save and add service"
+  # fire before X-Ray's recalc settled, stranding the next service on
+  # a half-rendered summary (timeout waiting for "Estimate summary").
+  # 3000ms matches the lambda precedent.
+  - { action: wait_ms, ms: 3000 }
 
 health_locators:
   - { role: textbox, name: { regex: "Number of requests per month" }, label: "requests per month textbox" }
