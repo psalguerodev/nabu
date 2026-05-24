@@ -53,10 +53,11 @@
                             ▼
 ┌─ Playwright sidecar (runner/) ───────────────────────────────┐
 │  runner/run.js reads {jobId, services[], options} on stdin,  │
-│  dynamically imports handler_path for each service, and      │
-│  hands the resolved list to createEstimate() in              │
-│  runner/lib/calculator.js. Each service module exports       │
-│  {id, adapter, handler} and is self-contained.               │
+│  resolves each service via runner/lib/services/registry.js   │
+│  (id → folder), loads either the imperative <folder>/index.js│
+│  OR the declarative <folder>/<leaf>.yaml via                 │
+│  runner/lib/datasheet.js, and hands the resolved list to     │
+│  createEstimate() in runner/lib/calculator.js.               │
 └──────────────────────────────────────────────────────────────┘
 ```
 
@@ -84,6 +85,56 @@ Claude Desktop config:
 ## Why a separate `runner/` package
 
 Earlier drafts had the MCP load Playwright in-process. That coupled the protocol layer to a >150 MB browser dependency, blocked the MCP event loop during a job, and made parallel jobs impossible. The current split keeps `mcp/` lean (no `playwright` dep) and treats the runner as a per-job sidecar. The MCP resolves each service to its `handlerPath` via the catalog and passes that path to the runner; the runner does the dynamic import.
+
+## Handler authoring patterns
+
+Two equivalent ways to define a service handler. Loaders detect which the folder uses and load accordingly — never mix both in the same service folder.
+
+### Declarative YAML datasheet (preferred for new services)
+
+A single `<service>.yaml` describes both the schema (fields, types, enums, defaults) and the navigation (flow + per-field UI hints). `runner/lib/datasheet.js` compiles it to the same primitive step list `runner/lib/declarative.js` already executes — no JS wrapper needed.
+
+Layout:
+```
+runner/lib/services/
+├── registry.js                       # id → folder map (single source)
+├── compute/ec2/ec2.yaml              # declarative service
+├── compute/ec2/ec2.discovery.md      # human discovery notes (optional)
+├── compute/lambda/index.js           # imperative service (not yet migrated)
+└── ai/sagemaker/
+    ├── _base.yaml                    # family base (extends target)
+    ├── async/async.yaml              # extends ../_base.yaml + declares activates/ready_text
+    └── ...                           # 6 more sub-services
+```
+
+Interpreter primitives (see `runner/lib/declarative.js`):
+`fill`, `click`, `select_dropdown`, `check_checkbox`, `select_combobox`, `toggle_checkbox_data_id`, `search_and_pick_first_row`, `wait_ms`, `wait_for_text`, `scroll`, `press_key`, `fill_if_visible`, `expand_section`.
+
+Composition primitives in `datasheet.js`:
+- `extends: ../_base.yaml` — family inheritance with merge (fields by id, flow stitched with parent prelude/postlude)
+- `$include: ../../_shared/<snippet>.yaml` — cross-service blocks
+- `*_field: <key>` — late-bound substitution from the merged doc (e.g. `targets_field: activates` resolves to the child's `activates` map)
+- `when:` expressions on flow entries — a tiny safe expression parser (no `eval`) supports `=== !== == != > < >= <= && || !`, member access, literals, identifiers
+
+The Zod schema in `mcp/catalog/schemas/<service>.js` is **generated** from the YAML by `pnpm -C runner gen:zod <service>`. Never edit it by hand.
+
+### Imperative JS handler (legacy, still supported)
+
+A `<folder>/index.js` exporting `{ id, version, healthLocators, healthPrerequisite?, adapter, handler }`. The `handler(page, config)` function drives Playwright directly. This is what every service started as; ~18 remain to be migrated to YAML.
+
+### Loader behavior
+
+`mcp/catalog/index.js:loadEmbedded()`, `runner/run.js:loadHandlerModule()`, and `runner/health.js:loadHandler()` all use the same lookup: ask `runner/lib/services/registry.js` for the folder, then prefer `index.js` if present, otherwise load `<leaf>.yaml` via `loadHandlerFromYaml()`. Remote-overlaid services (downloaded catalog releases) bypass this and load handlers from their published dir.
+
+### Catalog guard (CI)
+
+`pnpm -C runner check:catalog` (also `.github/workflows/catalog-guard.yml` on every PR) runs 4 integrity checks across all YAML datasheets:
+1. **Zod drift** — generated `<service>.js` matches what gen-zod would produce now
+2. **YAML loadability** — `loadDatasheet()` resolves `extends`/`$include` without throwing
+3. **Catalog completeness** — every datasheet has an entry in `mcp/catalog/catalog.json`
+4. **Health locators present** — at least one declared per datasheet
+
+`--fix` auto-regenerates drifted Zod schemas.
 
 ## MCP tool surface (shipped)
 
