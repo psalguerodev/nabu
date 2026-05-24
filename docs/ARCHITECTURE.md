@@ -136,6 +136,19 @@ A `<folder>/index.js` exporting `{ id, version, healthLocators, healthPrerequisi
 
 `--fix` auto-regenerates drifted Zod schemas.
 
+### Pre-merge validation pattern for handler changes
+
+The CI catalog guard is fast and filesystem-only, so it can't catch handler bugs that only surface against the live calculator. For any non-trivial YAML edit (new field, locator change, flow reorder), run the handler end-to-end before merging:
+
+1. **Single-service E2E**: `cat <<JSON | node runner/run.js` with a realistic params spec, then open the resulting `calculator_url` and check the Config Summary against the spec.
+2. **Mixed-estimate validation**: a single job with several services in `services[]` exercises the runner's chain (Save-and-add-service, group navigation, browser-state isolation between handlers). Failure modes that don't appear in single-service runs:
+   - Locator strict-mode collisions when an earlier service warmed the wizard into a state where another section's labels are now present (caught the S3 Standard / Standard-IA prefix bug).
+   - Browser timing differences when many fills happen in sequence (caught the Lambda race where the tail Tab+wait was too short for React to commit duration + memory before Save).
+
+   See the `mixed estimate validation` test cases used in past batches: Web App Backend (ec2+ebs+s3+cloudwatch+waf), ML Training Pipeline (sagemaker family + s3 + cloudwatch), Serverless Backend (lambda+s3+cognito+cloudwatch+xray), Document AI (textract+s3+lambda+sagemaker-batch-transform), VPN+Ops (vpn+ec2+ebs+cloudwatch+athena+step-functions).
+
+3. **Controlled delta tests** when in doubt about whether a field is being applied. AWS's read-only estimate view sometimes omits fields from the Config Summary even though they're billed. Don't infer field application from the summary text — instead vary ONE input across two runs and confirm the monthly cost changed by the expected per-unit amount.
+
 ## MCP tool surface (shipped)
 
 Fast / synchronous:
