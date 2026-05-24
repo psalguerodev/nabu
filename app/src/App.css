@@ -1,27 +1,27 @@
 :root {
-  /* ARKHO brand — azules secundarios */
-  --bg: #1a2738;
-  --panel: #233043;
-  --panel-2: #2e3d53;
-  --border: #42536c;
-  --muted: #5f7993;
-  --text: #f0f3f7;
+  /* ARKHO brand — azules secundarios (paleta más oscura) */
+  --bg: #0d1622;
+  --panel: #15202f;
+  --panel-2: #1c2a3c;
+  --border: #2a3a52;
+  --muted: #6c7f96;
+  --text: #e8ecf2;
 
   /* ARKHO brand — verdes principales */
   --accent: #38e0a8;
   --accent-strong: #27b791;
-  --accent-soft: rgba(56, 224, 168, 0.12);
+  --accent-soft: rgba(56, 224, 168, 0.1);
 
   --brand-gradient: linear-gradient(135deg, #5aa89d 0%, #144b82 100%);
 
-  --radius: 8px;
-  --radius-lg: 12px;
+  --radius: 6px;
+  --radius-lg: 10px;
   --shadow:
-    0 1px 0 rgba(255, 255, 255, 0.03) inset,
-    0 8px 24px rgba(0, 0, 0, 0.25);
+    0 1px 0 rgba(255, 255, 255, 0.02) inset,
+    0 6px 18px rgba(0, 0, 0, 0.35);
 
-  --gap: 14px;
-  --gap-lg: 20px;
+  --gap: 10px;
+  --gap-lg: 14px;
 }
 
 * {
@@ -42,7 +42,7 @@ body,
     "Segoe UI",
     Roboto,
     sans-serif;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
@@ -54,7 +54,7 @@ body,
 
 .shell {
   display: grid;
-  grid-template-columns: 220px 1fr;
+  grid-template-columns: 196px 1fr;
   grid-template-rows: 1fr auto;
   grid-template-areas:
     "sidebar content"
@@ -62,8 +62,8 @@ body,
   height: 100vh;
   background:
     radial-gradient(
-      1200px 600px at 0% 0%,
-      rgba(56, 224, 168, 0.06),
+      1100px 500px at 0% 0%,
+      rgba(56, 224, 168, 0.04),
       transparent 60%
     ),
     var(--bg);
@@ -73,10 +73,10 @@ body,
   grid-area: sidebar;
   background: var(--panel);
   border-right: 1px solid var(--border);
-  padding: 20px 14px;
+  padding: 14px 10px;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
   overflow-y: auto;
 }
 
@@ -122,14 +122,14 @@ body,
   border: none;
   color: var(--muted);
   text-align: left;
-  padding: 9px 12px;
+  padding: 6px 10px;
   border-radius: var(--radius);
   cursor: pointer;
   font: inherit;
   font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   transition:
     background-color 120ms ease,
     color 120ms ease;
@@ -162,7 +162,7 @@ body,
 
 .content {
   grid-area: content;
-  padding: 28px 32px;
+  padding: 18px 22px;
   overflow: auto;
   container-type: inline-size;
 }
@@ -172,8 +172,8 @@ body,
   border-top: 1px solid var(--border);
   background: var(--panel);
   color: var(--muted);
-  padding: 8px 18px;
-  font-size: 12px;
+  padding: 6px 14px;
+  font-size: 11px;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -213,7 +213,7 @@ body,
 
 .page-header h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 19px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -231,7 +231,7 @@ body,
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 20px 22px;
+  padding: 14px 16px;
   box-shadow: var(--shadow);
 }
 
@@ -308,8 +308,8 @@ body,
 .services-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 6px 12px;
+  gap: 10px;
+  padding: 5px 10px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -355,11 +355,11 @@ body,
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 10px 12px;
+  padding: 7px 10px;
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   transition:
     border-color 120ms ease,
     background-color 120ms ease;
@@ -879,11 +879,11 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 6px 10px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -922,11 +922,11 @@ body,
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 10px 12px;
+  padding: 7px 10px;
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   transition:
     border-color 120ms ease,
     background-color 120ms ease;

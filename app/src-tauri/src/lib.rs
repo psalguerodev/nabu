@@ -16,6 +16,12 @@ const REMOTE_CATALOG_DIR: &str = "remote-catalog";
 
 struct McpProcess(Mutex<Option<Child>>);
 
+// Paths captured at setup so restart_mcp can respawn with the same env.
+struct McpSpawnPaths {
+    db_path: PathBuf,
+    remote_dir: PathBuf,
+}
+
 fn spawn_mcp(db_path: &PathBuf, remote_dir: &PathBuf) -> std::io::Result<Child> {
     Command::new("node")
         .args([MCP_SERVER_PATH, "--http", &format!("--port={MCP_PORT}")])
@@ -197,6 +203,23 @@ fn claude_uninstall() -> Result<ClaudeConfigStatus, String> {
     claude_config_status()
 }
 
+#[tauri::command]
+fn restart_mcp(
+    proc: tauri::State<'_, McpProcess>,
+    paths: tauri::State<'_, McpSpawnPaths>,
+) -> Result<bool, String> {
+    if let Some(mut child) = proc.0.lock().unwrap().take() {
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+    // Give the OS a moment to release the listening port before respawning.
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    let new_child = spawn_mcp(&paths.db_path, &paths.remote_dir)
+        .map_err(|e| format!("failed to respawn MCP: {e}"))?;
+    *proc.0.lock().unwrap() = Some(new_child);
+    Ok(true)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -210,6 +233,7 @@ pub fn run() {
             claude_config_status,
             claude_install,
             claude_uninstall,
+            restart_mcp,
         ])
         .setup(|app| {
             let data_dir = app
@@ -224,6 +248,10 @@ pub fn run() {
             let child = spawn_mcp(&db_path, &remote_dir)
                 .expect("failed to spawn Nabu MCP sidecar (is `node` on PATH?)");
             app.manage(McpProcess(Mutex::new(Some(child))));
+            app.manage(McpSpawnPaths {
+                db_path: db_path.clone(),
+                remote_dir: remote_dir.clone(),
+            });
             Ok(())
         })
         .build(tauri::generate_context!())

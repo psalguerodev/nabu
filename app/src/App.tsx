@@ -96,7 +96,6 @@ export default function App() {
     <div className="shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark" aria-hidden />
           <div className="brand-name">
             Nabu<em>· ARKHO</em>
           </div>
@@ -1024,10 +1023,57 @@ function SettingsPanel() {
           <span className="setting-label">MCP port</span>
           <span className="setting-value">7531 (fixed in this milestone)</span>
         </div>
+
+        <McpRestartRow />
       </section>
 
       <ClaudeDesktopSetupCard />
     </>
+  );
+}
+
+function McpRestartRow() {
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  async function restart() {
+    setBusy(true);
+    setMessage(null);
+    try {
+      await invoke<boolean>("restart_mcp");
+      // Probe the new sidecar so the user sees confirmation when it's back.
+      const deadline = Date.now() + 8000;
+      let ready = false;
+      while (Date.now() < deadline) {
+        try {
+          const r = await fetch("http://127.0.0.1:7531/health");
+          if (r.ok) {
+            ready = true;
+            break;
+          }
+        } catch {
+          /* still booting */
+        }
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      setMessage(ready ? "MCP restarted." : "Restart issued; sidecar not responding yet.");
+    } catch (e) {
+      setMessage(`Failed: ${(e as Error).message ?? e}`);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="setting-row">
+      <span className="setting-label">MCP sidecar</span>
+      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+        {message && <span className="setting-value">{message}</span>}
+        <button className="btn" onClick={restart} disabled={busy}>
+          {busy ? "Restarting…" : "Restart connection"}
+        </button>
+      </div>
+    </div>
   );
 }
 
