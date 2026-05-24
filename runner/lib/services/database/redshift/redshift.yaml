@@ -1,0 +1,185 @@
+# =============================================================================
+# Amazon Redshift — service datasheet
+# =============================================================================
+# Migrated from imperative database/redshift/index.js (v0.1.0).
+#
+# Two operating modes:
+#   - serverless  (default): Base RPU × hours/day × workload_size
+#   - provisioned: nodes × instance_type × utilization%
+#
+# Wizard default is Provisioned; YAML default is serverless, so we always
+# apply `mode` to ensure the wizard matches the spec (EBS lesson).
+#
+# Scope cuts vs legacy:
+#   - Legacy guarded `utilization_percent` with `>0 && !=100`. The `!=100`
+#     part is fine in the when-grammar (comparisons only). The `>0` part
+#     is also fine (comparison, not arithmetic).
+#   - Base RPU is a CloudScape dropdown with discrete options. Legacy
+#     passed any integer through `String(baseRPU)`. We model it as an
+#     enum over the documented Serverless RPU values (8, 16, 24, 32, 40,
+#     48, 56, 64, 80, 96, 112, 128, 256, 512). Callers passing values
+#     outside this set will fail at schema validation rather than silently
+#     hit a missing wizard option.
+#   - Legacy `workload_size` accepted any string (passed straight to
+#     option click). The wizard surfaces a fixed set; we enumerate the
+#     three documented choices (price-performance / balanced / price)
+#     plus the implicit default of "no selection" (visible_when omitted
+#     when null).
+#   - Instance type is a CloudScape autocomplete combobox; uses kind:
+#     combobox so the interpreter does the fill + ArrowDown + Enter dance.
+# =============================================================================
+
+service: redshift
+version: 0.2.0
+
+meta:
+  name: Amazon Redshift
+  search: Redshift
+  config_pattern: "Amazon Redshift"
+  category: database
+  description: |
+    Redshift data warehouse pricing. Serverless mode bills base RPU ×
+    expected daily runtime; Provisioned mode bills nodes × instance
+    type × utilization. Defaults match the legacy v0.1 behavior
+    (serverless, 8 RPU).
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: mode
+    type: enum
+    default: serverless
+    description: Redshift mode. Wizard default is Provisioned; YAML default is serverless, so always applied.
+    options:
+      - { value: serverless,  label: "Redshift Serverless", default: true }
+      - { value: provisioned, label: "Provisioned" }
+    ui:
+      kind: radio
+      locator: { role: radio }
+
+  # ---- Serverless branch -------------------------------------------------
+  - id: workload_size
+    type: enum
+    optional: true
+    description: |
+      Optional workload-size dropdown for Serverless. When unset, the
+      wizard keeps its default and the runner skips the step.
+    options:
+      - { value: price_performance, label: "Price-performance" }
+      - { value: balanced,          label: "Balanced" }
+      - { value: price,             label: "Price" }
+    visible_when: "mode == 'serverless'"
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Workload size" } }
+
+  - id: base_rpu
+    type: enum
+    default: "8"
+    description: Base RPU for Redshift Serverless. Discrete dropdown values.
+    options:
+      - { value: "8",   label: "8", default: true }
+      - { value: "16",  label: "16" }
+      - { value: "24",  label: "24" }
+      - { value: "32",  label: "32" }
+      - { value: "40",  label: "40" }
+      - { value: "48",  label: "48" }
+      - { value: "56",  label: "56" }
+      - { value: "64",  label: "64" }
+      - { value: "80",  label: "80" }
+      - { value: "96",  label: "96" }
+      - { value: "112", label: "112" }
+      - { value: "128", label: "128" }
+      - { value: "256", label: "256" }
+      - { value: "512", label: "512" }
+    visible_when: "mode == 'serverless'"
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Base RPU" } }
+
+  - id: hours_per_day
+    type: number
+    default: 0
+    constraints: { min: 0, max: 24 }
+    description: Expected daily runtime in hours (Serverless).
+    visible_when: "mode == 'serverless'"
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "^Expected daily runtime" } }
+
+  # ---- Provisioned branch ------------------------------------------------
+  - id: nodes
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    description: Number of provisioned nodes.
+    visible_when: "mode == 'provisioned'"
+    ui:
+      kind: text
+      locator: { role: textbox, name: "Nodes" }
+
+  - id: instance_type
+    type: string
+    default: ra3.xlplus
+    description: |
+      Exact provisioned node instance type (e.g. ra3.xlplus, ra3.4xlarge,
+      ra3.16xlarge). Driven via the CloudScape autocomplete combobox.
+    visible_when: "mode == 'provisioned'"
+    ui:
+      kind: combobox
+      locator: { role: combobox, name: { regex: "Select an instance" } }
+
+  - id: utilization_percent
+    type: number
+    default: 100
+    constraints: { min: 0, max: 100 }
+    description: Utilization percent (On-Demand only). 100 == wizard default.
+    visible_when: "mode == 'provisioned'"
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Utilization \\(On-Demand only\\)" } }
+
+flow:
+  # Mode is always applied — wizard default differs from YAML default.
+  - apply: mode
+
+  # ----- Serverless branch -----
+  - apply: workload_size
+    when: "mode == 'serverless' && workload_size != null"
+
+  - apply: base_rpu
+    when: "mode == 'serverless'"
+
+  - apply: hours_per_day
+    when: "mode == 'serverless' && hours_per_day > 0"
+
+  # ----- Provisioned branch -----
+  - apply: nodes
+    when: "mode == 'provisioned'"
+
+  - apply: instance_type
+    when: "mode == 'provisioned'"
+
+  # Legacy guard: skip the utilization fill when value is 0 or default 100.
+  - apply: utilization_percent
+    when: "mode == 'provisioned' && utilization_percent > 0 && utilization_percent != 100"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+# Health probe must put the wizard into the Serverless branch before
+# probing Base RPU + Expected daily runtime locators (matches legacy
+# healthPrerequisite which clicked the Serverless radio).
+health_prerequisite_flow:
+  - { action: click, role: radio, name: "Redshift Serverless" }
+  - { action: wait_ms, ms: 800 }
+
+health_locators:
+  - { role: radio,   name: "Redshift Serverless", label: "Serverless mode radio" }
+  - { role: button,  name: { regex: "^Base RPU" }, label: "Base RPU dropdown" }
+  - { role: textbox, name: { regex: "^Expected daily runtime" }, label: "expected daily runtime textbox" }

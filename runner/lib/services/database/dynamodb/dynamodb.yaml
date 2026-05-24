@@ -1,0 +1,195 @@
+# =============================================================================
+# Amazon DynamoDB — service datasheet
+# =============================================================================
+# Migrated from imperative database/dynamodb/index.js (v0.1.0).
+#
+# Capacity mode is modeled as an enum. The wizard exposes it as TWO mutually
+# exclusive checkboxes ("DynamoDB provisioned capacity" / "DynamoDB on-demand
+# capacity"), not a radio. Wizard default = provisioned-checked. For the
+# on_demand branch we uncheck provisioned and check on-demand via two
+# check_checkbox steps (idempotent: no-op when already in desired state).
+#
+# Legacy used a JS-eval native-click hack with retry, citing CloudScape span
+# interception. We retain `check_checkbox` (which is what AppSync's two
+# feature checkboxes also use successfully). If field-test shows the click
+# is swallowed we can promote to `toggle_checkbox_data_id` once we capture
+# the data-ids; flagged as a follow-up rather than blocking the migration.
+#
+# Read/write rate fields are only emitted for capacity_mode == 'provisioned'
+# (on-demand has no rate inputs).
+#
+# Scope cut vs legacy: the legacy handler skipped the average-item-size fill
+# when avgItemSizeKB === 1 (the wizard default). We keep that guard with
+# `avg_item_size_kb != 1`, which the when-grammar supports (no arithmetic
+# required).
+# =============================================================================
+
+service: dynamodb
+version: 0.2.0
+
+meta:
+  name: Amazon DynamoDB
+  search: DynamoDB
+  config_pattern: "Amazon DynamoDB"
+  category: database
+  description: |
+    DynamoDB table sizing. Capacity mode (provisioned vs on-demand) gates
+    the rate inputs. Storage size and average item size apply in both
+    modes; baseline/peak read+write rates and peak duration apply only
+    under provisioned capacity.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: capacity_mode
+    type: enum
+    default: provisioned
+    description: |
+      Capacity mode. Wizard default is provisioned (checkbox checked,
+      on-demand unchecked). Switching to on_demand unchecks provisioned
+      and checks on-demand via two idempotent check_checkbox steps.
+    options:
+      - { value: provisioned, label: "DynamoDB provisioned capacity", default: true }
+      - { value: on_demand,   label: "DynamoDB on-demand capacity" }
+    # No `ui:` block — the enum value drives the two explicit checkbox
+    # flips emitted in the flow below (not a single auto-emitted step).
+
+  # ---- Common (both modes) ----------------------------------------------
+  - id: storage_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Data storage size in GB.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Data storage size Value" } }
+
+  - id: avg_item_size_kb
+    type: number
+    default: 1
+    constraints: { min: 0 }
+    description: Average item size in KB. Skipped when equal to the wizard default (1).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Average item size" } }
+
+  # ---- Provisioned-only -------------------------------------------------
+  - id: baseline_write_per_sec
+    type: number
+    default: 100
+    constraints: { min: 0 }
+    visible_when: "capacity_mode == 'provisioned'"
+    description: Baseline write rate (writes/sec).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Baseline write rate Value" } }
+
+  - id: peak_write_per_sec
+    type: number
+    default: 400
+    constraints: { min: 0 }
+    visible_when: "capacity_mode == 'provisioned'"
+    description: Peak write rate (writes/sec).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Peak write rate Value" } }
+
+  - id: baseline_read_per_sec
+    type: number
+    default: 100
+    constraints: { min: 0 }
+    visible_when: "capacity_mode == 'provisioned'"
+    description: Baseline read rate (reads/sec).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Baseline read rate Value" } }
+
+  - id: peak_read_per_sec
+    type: number
+    default: 400
+    constraints: { min: 0 }
+    visible_when: "capacity_mode == 'provisioned'"
+    description: Peak read rate (reads/sec).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Peak read rate Value" } }
+
+  - id: peak_duration_hours
+    type: number
+    default: 72
+    constraints: { min: 0 }
+    visible_when: "capacity_mode == 'provisioned'"
+    description: |
+      Duration (hours) the peak rate is sustained. Legacy handler used a
+      single value for both read and write peak-duration spinbuttons; we
+      mirror that by filling both with the same field value.
+    # No `ui:` — driven by two fill steps in the flow (write + read duration).
+
+flow:
+  # Capacity mode — only flip checkboxes when switching away from the
+  # wizard's default (provisioned-on, on-demand-off). check_checkbox is
+  # idempotent so order doesn't matter, but we uncheck provisioned first
+  # so the wizard never sees both selected simultaneously.
+  - when: "capacity_mode == 'on_demand'"
+    action: check_checkbox
+    role: checkbox
+    name: "DynamoDB provisioned capacity"
+    value: false
+
+  - when: "capacity_mode == 'on_demand'"
+    action: check_checkbox
+    role: checkbox
+    name: "DynamoDB on-demand capacity"
+    value: true
+
+  - { action: wait_ms, ms: 800 }
+
+  # Storage (both modes) — skip the zero default.
+  - apply: storage_gb
+    when: "storage_gb > 0"
+
+  # Average item size — skip the wizard default of 1.
+  - apply: avg_item_size_kb
+    when: "avg_item_size_kb != 1"
+
+  # Provisioned-only rate inputs.
+  - apply: baseline_write_per_sec
+    when: "capacity_mode == 'provisioned'"
+  - apply: peak_write_per_sec
+    when: "capacity_mode == 'provisioned'"
+
+  - when: "capacity_mode == 'provisioned'"
+    action: fill
+    role: spinbutton
+    name: { regex: "Duration of peak write activity Value" }
+    value: "{peak_duration_hours}"
+
+  - apply: baseline_read_per_sec
+    when: "capacity_mode == 'provisioned'"
+  - apply: peak_read_per_sec
+    when: "capacity_mode == 'provisioned'"
+
+  - when: "capacity_mode == 'provisioned'"
+    action: fill
+    role: spinbutton
+    name: { regex: "Duration of peak read activity Value" }
+    value: "{peak_duration_hours}"
+
+  - { action: press_key, key: "Tab" }
+  # 3000ms: DynamoDB recalc is heavier than simple per-event services and
+  # provisioned mode touches 6+ spinbuttons; mirror the recalc-heavy
+  # precedent (lambda / cloudtrail) so the total cost settles before
+  # "Save and add service" fires.
+  - { action: wait_ms, ms: 3000 }
+
+health_locators:
+  - { role: checkbox, name: "DynamoDB provisioned capacity", label: "provisioned capacity checkbox" }
+  - { role: checkbox, name: "DynamoDB on-demand capacity", label: "on-demand capacity checkbox" }
+  - { role: spinbutton, name: { regex: "Data storage size Value" }, label: "data storage size spinbutton" }
+  - { role: spinbutton, name: { regex: "Baseline write rate Value" }, label: "baseline write rate spinbutton" }
+  - { role: spinbutton, name: { regex: "Baseline read rate Value" }, label: "baseline read rate spinbutton" }

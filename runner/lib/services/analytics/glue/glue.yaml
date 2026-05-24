@@ -1,0 +1,129 @@
+# =============================================================================
+# AWS Glue — service datasheet
+# =============================================================================
+# Migrated from the imperative analytics/glue/index.js handler (v0.1.1).
+# Models the "ETL jobs and interactive sessions" wizard template (default
+# checked). Three independent job families:
+#   - Apache Spark ETL jobs       (DPUs + minutes/month)
+#   - Python Shell jobs           (DPUs + minutes/month)
+#   - Provisioned interactive sessions (DPUs + minutes/month)
+#
+# The legacy handler skipped any pair when its value was 0; we mirror that
+# with `when:` guards. For interactive sessions the wizard rejects DPU < 2
+# / duration < 1 with inline validation, so the legacy code only filled
+# when the caller passed usable values (dpus >= 2, minutes >= 1). YAML
+# expression grammar has no arithmetic, but >=/>/== suffice here so the
+# guard translates 1:1. Defaults match the legacy code (interactive 2/1)
+# so a default invocation lands on a passing form.
+# =============================================================================
+
+service: glue
+version: 0.2.0
+
+meta:
+  name: AWS Glue
+  search: Glue
+  config_pattern: "AWS Glue"
+  category: analytics
+  description: |
+    AWS Glue ETL pricing for Apache Spark jobs, Python Shell jobs, and
+    provisioned interactive sessions. Each job family is a DPU count
+    paired with minutes/month of execution. $0.44 per DPU-hour for Spark
+    and Python Shell jobs.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  # ---- Apache Spark ETL jobs --------------------------------------------
+  - id: spark_dpus
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of DPUs for each Apache Spark ETL job.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of DPUs for Apache Spark job" } }
+
+  - id: spark_minutes_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Minutes per month the Apache Spark ETL job runs.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Duration for which Apache Spark ETL job runs" } }
+
+  # ---- Python Shell jobs ------------------------------------------------
+  - id: python_shell_dpus
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of DPUs for each Python Shell job.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of DPUs for Python Shell job" } }
+
+  - id: python_shell_minutes_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Minutes per month the Python Shell ETL job runs.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Duration for which Python Shell job ETL runs" } }
+
+  # ---- Provisioned interactive sessions ---------------------------------
+  # Wizard rejects DPU < 2 / duration < 1 with inline validation. Defaults
+  # mirror the legacy handler so a no-arg call passes validation.
+  - id: interactive_dpus
+    type: integer
+    default: 2
+    constraints: { min: 0 }
+    description: Number of DPUs for each provisioned interactive session. Wizard requires >= 2 when filled.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of DPUs for each provisioned interactive session" } }
+
+  - id: interactive_minutes_per_month
+    type: integer
+    default: 1
+    constraints: { min: 0 }
+    description: Minutes per month of provisioned interactive sessions. Wizard requires >= 1 when filled.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Duration for provisioned interactive sessions" } }
+
+flow:
+  # Spark — only when the caller opted in.
+  - apply: spark_dpus
+    when: "spark_dpus > 0"
+  - apply: spark_minutes_per_month
+    when: "spark_minutes_per_month > 0"
+
+  # Python Shell — only when the caller opted in.
+  - apply: python_shell_dpus
+    when: "python_shell_dpus > 0"
+  - apply: python_shell_minutes_per_month
+    when: "python_shell_minutes_per_month > 0"
+
+  # Interactive sessions — only when values clear wizard validation. Leaving
+  # defaults untouched (no fill) is fine; the form already shows usable
+  # values and the cost is negligible.
+  - apply: interactive_dpus
+    when: "interactive_dpus >= 2"
+  - apply: interactive_minutes_per_month
+    when: "interactive_minutes_per_month >= 1"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: textbox, name: { regex: "Number of DPUs for Apache Spark job" }, label: "Spark DPUs textbox" }
+  - { role: spinbutton, name: { regex: "Duration for which Apache Spark ETL job runs" }, label: "Spark duration spinbutton" }
+  - { role: textbox, name: { regex: "Number of DPUs for each provisioned interactive session" }, label: "interactive session DPUs textbox" }
+  - { role: spinbutton, name: { regex: "Duration for provisioned interactive sessions" }, label: "interactive session duration spinbutton" }
