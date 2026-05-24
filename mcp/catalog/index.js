@@ -160,6 +160,16 @@ async function loadRemote(dir) {
         continue;
       }
       const mod = await dynamicImport(schemaPath);
+      // YAML overlays defer compilation to the embedded interpreter at
+      // load time (the bundle never ships datasheet.js / declarative.js).
+      // We import once here just to validate the YAML parses; the cached
+      // module is dropped because the runner re-imports per-job.
+      if (handlerPath.endsWith(".yaml") || handlerPath.endsWith(".yml")) {
+        const { loadHandlerFromYaml } = await dynamicImport(
+          join(REPO, "runner", "lib", "datasheet.js"),
+        );
+        loadHandlerFromYaml(handlerPath);
+      }
       entries.push([
         name,
         {

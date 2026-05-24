@@ -48,7 +48,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join, resolve as pathResolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { buildServiceFromSchema } from "./declarative.js";
 
 // ---------------------------------------------------------------------------
@@ -201,6 +201,17 @@ export function loadDatasheet(url) {
   const raw = parseYaml(readFileSync(sourcePath, "utf8"));
   const { doc } = resolveExtends(raw, sourcePath);
   return resolveTargetsFieldsForPrerequisite(resolveTargetsFields(doc));
+}
+
+/**
+ * Read a datasheet, fully resolve extends/targets/includes, and serialize
+ * it back to a self-contained YAML string. Used by publish.js so the
+ * remote bundle ships standalone datasheets without their _base.yaml
+ * parents.
+ */
+export function flattenDatasheetToYaml(url) {
+  const resolved = loadDatasheet(url);
+  return stringifyYaml(resolved);
 }
 
 // ---------------------------------------------------------------------------

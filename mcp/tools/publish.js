@@ -24,6 +24,12 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { sign } from "../sign/index.js";
+import { SERVICE_PATHS } from "../../runner/lib/services/registry.js";
+import {
+  resolveHandlerSource,
+  loadHandlerFromYaml,
+  flattenDatasheetToYaml,
+} from "../../runner/lib/datasheet.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
@@ -86,9 +92,7 @@ async function main() {
   const releaseServices = {};
   for (const name of services) {
     const schemaSrc = join(CATALOG_DIR, manifest.services[name].schema_ref);
-    const handlerSrc = join(HANDLERS_DIR, `${name}.js`);
     const schemaDst = join(OUT, "schemas", `${name}.js`);
-    const handlerDst = join(OUT, "handlers", `${name}.js`);
 
     // Bundle the schema with zod inlined so it can be imported from any
     // directory the user drops it into.
@@ -103,9 +107,31 @@ async function main() {
       logLevel: "silent",
     });
 
-    // Handlers have no imports today — they only use the Playwright `page`
-    // argument that the orchestrator hands them — so a plain copy is fine.
-    copyFileSync(handlerSrc, handlerDst);
+    // Resolve the handler via the registry — services live under their AWS
+    // category folder and may be either an imperative index.js or a
+    // declarative <leaf>.yaml. The remote bundle ships whichever the source
+    // tree uses; the embedded interpreter (datasheet.js + declarative.js)
+    // is reused at load time for YAML overlays.
+    const sub = SERVICE_PATHS[name];
+    if (!sub) {
+      console.error(`Service '${name}' has no registry entry.`);
+      process.exit(2);
+    }
+    const folderAbs = join(HANDLERS_DIR, sub);
+    const src = resolveHandlerSource(folderAbs);
+    if (!src) {
+      console.error(`Service '${name}': no index.js or <leaf>.yaml found in ${folderAbs}`);
+      process.exit(2);
+    }
+    const ext = src.kind === "yaml" ? "yaml" : "js";
+    const handlerDst = join(OUT, "handlers", `${name}.${ext}`);
+    if (src.kind === "yaml") {
+      // Flatten extends/_base.yaml chains so the bundle ships a single
+      // self-contained datasheet per service.
+      writeFileSync(handlerDst, flattenDatasheetToYaml(src.path));
+    } else {
+      copyFileSync(src.path, handlerDst);
+    }
 
     const handlerHash = sha256(handlerDst);
     const schemaHash = sha256(schemaDst);
@@ -113,13 +139,16 @@ async function main() {
     // per-service version. Re-publishing with no code change keeps the
     // semver part stable; the +<sha8> build identifier changes whenever
     // the file content does.
-    const handlerMod = await import(handlerDst);
+    const handlerMod =
+      src.kind === "yaml"
+        ? loadHandlerFromYaml(handlerDst)
+        : await import(handlerDst);
     const baseVersion = handlerMod.version ?? "0.1.0";
     const versionSuffix = handlerHash.slice(0, 8);
     releaseServices[name] = {
       handler_version: `${baseVersion}+${versionSuffix}`,
       schema_ref: `schemas/${name}.js`,
-      handler_ref: `handlers/${name}.js`,
+      handler_ref: `handlers/${name}.${ext}`,
       schema_sha256: schemaHash,
       handler_sha256: handlerHash,
       status: manifest.services[name].status,
