@@ -1,0 +1,180 @@
+# =============================================================================
+# Amazon S3 Vectors — service datasheet
+# =============================================================================
+# Migrated from imperative ai/s3-vectors/index.js (v0.1.0).
+#
+# S3 Vectors is a sub-feature of the Amazon S3 wizard form. The wizard opens
+# with "S3 Standard" + "Data Transfer" toggled on and "S3 Vectors" off.
+# Activating the vectors UI requires three idempotent checkbox flips:
+#
+#   - S3 Standard       → off
+#   - Data Transfer     → off
+#   - S3 Vectors        → on
+#
+# Legacy used a JS-eval label-walking hack (label/span → closest [data-id] →
+# native input.click()). We use the declarative `check_checkbox` primitive,
+# same approach DynamoDB's capacity_mode flip uses. If field-test shows the
+# role-based click is swallowed by CloudScape we can promote to
+# `toggle_checkbox_data_id` once we capture the data-ids — flagged as a
+# follow-up rather than blocking this migration.
+#
+# Scope cuts vs legacy:
+#   - None on the schema surface; every parameter the legacy adapter exposed
+#     is preserved (number_of_indexes, vectors_per_index, vector_dimensions,
+#     filterable_metadata_kb, non_filterable_metadata_kb, key_size_kb,
+#     percent_overwritten_per_month, total_queries_per_month).
+#   - Legacy skipped the non_filterable_metadata_kb fill when value was 0
+#     (default). We preserve that guard with `non_filterable_metadata_kb > 0`,
+#     a pure comparison the when-grammar supports.
+#   - The `wait_for_text` after the toggles replaces the legacy
+#     `page.waitForFunction(/S3 Vectors/...)` guard.
+# =============================================================================
+
+service: s3-vectors
+version: 0.2.0
+
+meta:
+  name: Amazon S3 Vectors
+  search: S3
+  config_pattern: "Amazon Simple Storage Service \\(S3\\)"
+  category: ai
+  description: |
+    S3 Vectors index sizing and query volume. Lives inside the Amazon S3
+    wizard; the prelude swaps off the default S3 Standard + Data Transfer
+    sub-features and enables the S3 Vectors sub-feature before driving the
+    per-index, per-vector, and query-volume inputs.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: number_of_indexes
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    description: Number of vector indexes in the bucket.
+    ui:
+      kind: number
+      locator: { role: textbox, name: { regex: "^Number of indexes" } }
+
+  - id: vectors_per_index
+    type: integer
+    default: 120000
+    constraints: { min: 0 }
+    description: Vectors stored per index (average).
+    ui:
+      kind: number
+      locator: { role: textbox, name: { regex: "Number of vectors per index" } }
+
+  - id: vector_dimensions
+    type: integer
+    default: 1024
+    constraints: { min: 1 }
+    description: Dimensions per vector.
+    ui:
+      kind: number
+      locator: { role: textbox, name: { regex: "Vector Dimensions" } }
+
+  - id: filterable_metadata_kb
+    type: number
+    default: 2
+    constraints: { min: 0 }
+    description: Filterable metadata (KB) attached per vector.
+    ui:
+      kind: number
+      locator:
+        role: spinbutton
+        name: { regex: "Filterable metadata \\(KB\\) per vector Value" }
+
+  - id: non_filterable_metadata_kb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      Non-filterable metadata (KB) per vector. Skipped when 0 (wizard
+      default); legacy parity.
+    ui:
+      kind: number
+      locator:
+        role: spinbutton
+        name: { regex: "Non-filterable metadata \\(KB\\) per vector Value" }
+
+  - id: key_size_kb
+    type: number
+    default: 0.5
+    constraints: { min: 0 }
+    description: Key size (KB) per vector.
+    ui:
+      kind: number
+      locator:
+        role: spinbutton
+        name: { regex: "Key size \\(KB\\) per vector Value" }
+
+  - id: percent_overwritten_per_month
+    type: number
+    default: 0.167
+    constraints: { min: 0 }
+    description: Percentage of vectors overwritten per month.
+    ui:
+      kind: number
+      locator:
+        role: spinbutton
+        name: { regex: "Percentage of vectors overwritten per month" }
+
+  - id: total_queries_per_month
+    type: integer
+    default: 15000
+    constraints: { min: 0 }
+    description: Total number of queries per month.
+    ui:
+      kind: number
+      locator:
+        role: spinbutton
+        name: { regex: "Total number of queries per month .* Value" }
+
+flow:
+  # ---- Activate the S3 Vectors sub-feature ------------------------------
+  # Three idempotent flips. check_checkbox no-ops when already in the
+  # desired state, so re-runs against an already-toggled form are safe.
+  - { action: check_checkbox, role: checkbox, name: "S3 Standard",   value: false }
+  - { action: check_checkbox, role: checkbox, name: "Data Transfer", value: false }
+  - { action: check_checkbox, role: checkbox, name: "S3 Vectors",    value: true }
+
+  - { action: wait_ms, ms: 1500 }
+  - { action: wait_for_text, pattern: "S3 Vectors", timeout_ms: 8000 }
+
+  # ---- Fill the per-index / per-vector inputs ---------------------------
+  - apply: number_of_indexes
+  - apply: vectors_per_index
+  - apply: vector_dimensions
+  - apply: filterable_metadata_kb
+
+  - apply: non_filterable_metadata_kb
+    when: "non_filterable_metadata_kb > 0"
+
+  - apply: key_size_kb
+  - apply: percent_overwritten_per_month
+  - apply: total_queries_per_month
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+# Health probe must enable the S3 Vectors sub-feature before the textboxes
+# / spinbuttons render. Matches legacy healthPrerequisite (which only
+# toggled S3 Vectors on, not the other two — we mirror that minimal flip
+# so a daily probe doesn't disturb the rest of the S3 form).
+health_prerequisite_flow:
+  - { action: check_checkbox, role: checkbox, name: "S3 Vectors", value: true }
+  - { action: wait_ms, ms: 1000 }
+
+health_locators:
+  - { role: textbox,    name: { regex: "^Number of indexes" },                                  label: "number of indexes textbox" }
+  - { role: textbox,    name: { regex: "Number of vectors per index" },                         label: "vectors per index textbox" }
+  - { role: textbox,    name: { regex: "Vector Dimensions" },                                   label: "vector dimensions textbox" }
+  - { role: spinbutton, name: { regex: "Filterable metadata \\(KB\\) per vector Value" },       label: "filterable metadata spinbutton" }
+  - { role: spinbutton, name: { regex: "Key size \\(KB\\) per vector Value" },                  label: "key size spinbutton" }
+  - { role: spinbutton, name: { regex: "Total number of queries per month .* Value" },          label: "total queries spinbutton" }

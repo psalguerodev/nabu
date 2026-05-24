@@ -1,0 +1,353 @@
+# =============================================================================
+# Amazon Bedrock AgentCore — service datasheet
+# =============================================================================
+# Migrated from imperative ai/bedrock-agentcore/index.js (v0.1.1).
+#
+# AgentCore is a composite service: a always-on Runtime section plus 6 opt-in
+# sub-service checkboxes (Gateway, Identity, Browser Tools, Code Interpreter,
+# Memory, Observability). Enabling Gateway / Browser Tools / Observability
+# exposes additional input fields; Identity / Code Interpreter / Memory have
+# their own internal inputs but the legacy handler did not fill any of them,
+# so neither does this datasheet.
+#
+# Locator-collision gotchas preserved from legacy:
+#   - "Number of agent sessions per month" textbox appears multiple times:
+#       index 0 = Runtime
+#       index 1 = Gateway (only when Gateway enabled)
+#       index (Gateway? 2 : 1) = Browser Tools (only when BT enabled)
+#     We model the Browser Tools fills as two conditional steps (one for
+#     each Gateway state) selecting the right nth().
+#   - Same pattern applies to "Average Session Duration (seconds)".
+#   - I/O Wait Time + Observability log/span fields are spinbuttons in the
+#     wizard; the per-session text inputs are textboxes. Preserve roles.
+#
+# Scope cut vs legacy:
+#   - The legacy `console.error` diagnostic that listed aria-invalid fields
+#     after Tab is dropped — the declarative interpreter doesn't expose a
+#     post-step eval hook and the runner reports invalid fields globally.
+#   - Browser Tools defaults (1 vCPU, 2 GB) come from legacy fallbacks;
+#     same numeric defaults applied here so behavior is identical.
+#
+# Health probe: Runtime is always-on (no branch flip needed), so we just
+# probe the 4 Runtime textboxes.
+# =============================================================================
+
+service: bedrock-agentcore
+version: 0.2.0
+
+meta:
+  name: Amazon Bedrock AgentCore
+  search: Bedrock AgentCore
+  config_pattern: "Amazon Bedrock AgentCore"
+  category: ai
+  description: |
+    Bedrock AgentCore runtime sizing plus optional sub-services (Gateway,
+    Identity, Browser Tools, Code Interpreter, Memory, Observability).
+    Runtime fields drive base session cost; sub-service toggles expose
+    feature-specific inputs.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  # ---- Sub-service toggles (all default OFF) ----------------------------
+  - id: enable_gateway
+    type: boolean
+    default: false
+    description: Toggle the AgentCore Gateway sub-service. Exposes Gateway-specific inputs.
+    ui:
+      kind: checkbox
+      locator: { role: checkbox, name: "AgentCore Gateway" }
+
+  - id: enable_identity
+    type: boolean
+    default: false
+    description: Toggle the AgentCore Identity sub-service. No additional inputs filled.
+    ui:
+      kind: checkbox
+      locator: { role: checkbox, name: "AgentCore Identity" }
+
+  - id: enable_browser_tools
+    type: boolean
+    default: false
+    description: Toggle the AgentCore Browser Tools sub-service. Exposes BT-specific inputs.
+    ui:
+      kind: checkbox
+      locator: { role: checkbox, name: "AgentCore Browser Tools" }
+
+  - id: enable_code_interpreter
+    type: boolean
+    default: false
+    description: Toggle the AgentCore Code Interpreter sub-service. No additional inputs filled.
+    ui:
+      kind: checkbox
+      locator: { role: checkbox, name: "AgentCore Code Interpreter" }
+
+  - id: enable_memory
+    type: boolean
+    default: false
+    description: Toggle the AgentCore Memory sub-service. No additional inputs filled.
+    ui:
+      kind: checkbox
+      locator: { role: checkbox, name: "AgentCore Memory" }
+
+  - id: enable_observability
+    type: boolean
+    default: false
+    description: Toggle the AgentCore Observability sub-service. Exposes log/span ingest inputs.
+    ui:
+      kind: checkbox
+      locator: { role: checkbox, name: "AgentCore Observability" }
+
+  # ---- Runtime (always-on) ----------------------------------------------
+  - id: sessions_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Runtime — number of agent sessions per month.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of agent sessions per month" }, first: true }
+
+  - id: avg_session_duration_sec
+    type: number
+    default: 60
+    constraints: { min: 0 }
+    description: Runtime — average session duration in seconds.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Average Session Duration" }, first: true }
+
+  - id: io_wait_percent
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: Runtime — I/O wait percent. Skipped when 0.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "I/O Wait Time" }, first: true }
+
+  - id: avg_vcpu
+    type: number
+    default: 1
+    constraints: { min: 0 }
+    description: Runtime — average vCPU.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Average vCPU" }, first: true }
+
+  - id: avg_session_memory_gb
+    type: number
+    default: 1
+    constraints: { min: 0 }
+    description: Runtime — average memory per session (GB).
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Average Session Memory" }, first: true }
+
+  # ---- Gateway sub-service inputs ---------------------------------------
+  - id: gateway_sessions
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "enable_gateway == true"
+    description: |
+      Gateway — number of agent sessions per month. Shares its accessible
+      name with the Runtime sessions textbox; driven by an explicit fill
+      step targeting nth(1).
+    # No `ui:` — driven by an explicit fill below to control nth().
+
+  - id: gateway_tools
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "enable_gateway == true"
+    description: Gateway — total number of tools defined.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Total Number of tools defined" } }
+
+  - id: gateway_search_requests
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "enable_gateway == true"
+    description: Gateway — average number of Search API requests.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Average number of Search API requests" } }
+
+  - id: gateway_tool_invocations
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "enable_gateway == true"
+    description: Gateway — average number of tool invocations.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Average number of tool invocations" } }
+
+  # ---- Browser Tools sub-service inputs ---------------------------------
+  - id: browser_sessions_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "enable_browser_tools == true"
+    description: |
+      Browser Tools — number of agent sessions per month. Shares its
+      label with Runtime + Gateway sessions; driven by explicit fill
+      steps below with nth based on whether Gateway is enabled.
+
+  - id: browser_session_duration_sec
+    type: number
+    default: 60
+    constraints: { min: 0 }
+    visible_when: "enable_browser_tools == true"
+    description: Browser Tools — average session duration (seconds). Shared label, see above.
+
+  - id: browser_session_vcpu
+    type: number
+    default: 1
+    constraints: { min: 0 }
+    visible_when: "enable_browser_tools == true"
+    description: Browser Tools — vCPU per browser session.
+    ui:
+      kind: text
+      locator: { role: textbox, name: "vCPU per Browser Session", first: true }
+
+  - id: browser_session_memory_gb
+    type: number
+    default: 2
+    constraints: { min: 0 }
+    visible_when: "enable_browser_tools == true"
+    description: Browser Tools — memory per browser session (GB).
+    ui:
+      kind: text
+      locator: { role: textbox, name: "Memory per Browser Session (GB)", first: true }
+
+  # ---- Observability sub-service inputs ---------------------------------
+  - id: observability_logs_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "enable_observability == true"
+    description: Observability — vended logs ingested (GB).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Observability vended logs ingested" }, first: true }
+
+  - id: observability_spans_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "enable_observability == true"
+    description: Observability — spans ingested (GB).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Observability spans ingested" }, first: true }
+
+flow:
+  # ---- Sub-service toggles (only flip when enabling; all default OFF) ----
+  - apply: enable_gateway
+    when: "enable_gateway == true"
+  - apply: enable_identity
+    when: "enable_identity == true"
+  - apply: enable_browser_tools
+    when: "enable_browser_tools == true"
+  - apply: enable_code_interpreter
+    when: "enable_code_interpreter == true"
+  - apply: enable_memory
+    when: "enable_memory == true"
+  - apply: enable_observability
+    when: "enable_observability == true"
+
+  - { action: wait_ms, ms: 800 }
+
+  # ---- Runtime fields (skip when 0) -------------------------------------
+  - apply: sessions_per_month
+    when: "sessions_per_month > 0"
+  - apply: avg_session_duration_sec
+    when: "avg_session_duration_sec > 0"
+  - apply: io_wait_percent
+    when: "io_wait_percent > 0"
+  - apply: avg_vcpu
+    when: "avg_vcpu > 0"
+  - apply: avg_session_memory_gb
+    when: "avg_session_memory_gb > 0"
+
+  # ---- Gateway fields ----------------------------------------------------
+  # Gateway sessions reuse the Runtime sessions label; target nth(1).
+  - when: "enable_gateway == true && gateway_sessions > 0"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 1
+    value: "{gateway_sessions}"
+
+  - apply: gateway_tools
+    when: "enable_gateway == true && gateway_tools > 0"
+  - apply: gateway_search_requests
+    when: "enable_gateway == true && gateway_search_requests > 0"
+  - apply: gateway_tool_invocations
+    when: "enable_gateway == true && gateway_tool_invocations > 0"
+
+  # ---- Browser Tools fields ---------------------------------------------
+  # vCPU + Memory have unique labels and are handled by their field ui:.
+  - apply: browser_session_vcpu
+    when: "enable_browser_tools == true"
+  - apply: browser_session_memory_gb
+    when: "enable_browser_tools == true"
+
+  # BT sessions + duration share labels with Runtime (+ Gateway when on).
+  # btSessionsIdx = (enableGateway ? 1 : 0) + 1, i.e. 1 when Gateway off,
+  # 2 when Gateway on. Emit one variant per Gateway state.
+  - when: "enable_browser_tools == true && enable_gateway == false"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 1
+    value: "{browser_sessions_per_month}"
+
+  - when: "enable_browser_tools == true && enable_gateway == true"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 2
+    value: "{browser_sessions_per_month}"
+
+  - when: "enable_browser_tools == true && enable_gateway == false"
+    action: fill
+    role: textbox
+    name: "Average Session Duration (seconds)"
+    nth: 1
+    value: "{browser_session_duration_sec}"
+
+  - when: "enable_browser_tools == true && enable_gateway == true"
+    action: fill
+    role: textbox
+    name: "Average Session Duration (seconds)"
+    nth: 2
+    value: "{browser_session_duration_sec}"
+
+  # ---- Observability fields ---------------------------------------------
+  - apply: observability_logs_gb
+    when: "enable_observability == true && observability_logs_gb > 0"
+  - apply: observability_spans_gb
+    when: "enable_observability == true && observability_spans_gb > 0"
+
+  - { action: press_key, key: "Tab" }
+  # 3000ms: AgentCore is a composite service with up to 6 sub-sections and
+  # heavy recalc; mirror DynamoDB/lambda precedent so total cost settles
+  # before "Save and add service" fires.
+  - { action: wait_ms, ms: 3000 }
+
+# Runtime section is always-on (no branch flip), so no prerequisite flow.
+health_locators:
+  - { role: textbox, name: { regex: "Number of agent sessions per month" }, label: "Runtime sessions per month textbox" }
+  - { role: textbox, name: { regex: "Average Session Duration" }, label: "Runtime average session duration textbox" }
+  - { role: textbox, name: { regex: "Average vCPU" }, label: "Runtime average vCPU textbox" }
+  - { role: textbox, name: { regex: "Average Session Memory" }, label: "Runtime session memory textbox" }

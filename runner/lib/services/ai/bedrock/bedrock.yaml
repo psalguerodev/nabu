@@ -1,0 +1,197 @@
+# =============================================================================
+# Amazon Bedrock - service datasheet
+# =============================================================================
+# Migrated from imperative ai/bedrock/index.js (v0.1.2).
+#
+# Foundation-model pricing. The wizard renders one "usage block" per enabled
+# provider (Amazon Nova by default, Anthropic optional). Each block contains
+# the same labelled controls: model picker + four token-volume textboxes.
+#
+# ----- Locator notes / scope cuts -------------------------------------------
+#
+# 1) Provider checkboxes have NO accessible name. The visible provider label
+#    ("Amazon" / "Anthropic") lives in a grandparent <span> with no
+#    aria-linkage, so `getByRole('checkbox', { name: ... })` returns nothing.
+#    Legacy walked from the text node to the nearest checkbox in a
+#    page.evaluate() block. The interpreter has no equivalent primitive, so
+#    we lean on Playwright's CSS engine extensions (`:near(:text(...))`),
+#    which buildLocator() supports via the `{ css: '...' }` shape. If a
+#    future wizard rev breaks `:near`, the fallback is to add a
+#    `toggle_checkbox_data_id` step or to extend the interpreter with a
+#    "text-anchored checkbox" primitive.
+#
+# 2) `model` is a string, not an enum. The Bedrock catalog grows monthly
+#    (Anthropic Claude 4.5/4.6, Amazon Nova Micro/Lite/Pro/Premier, plus
+#    Long-Context variants), and the wizard's option text changes when AWS
+#    revises a model. We expose it as a free-form string and use a raw
+#    `select_dropdown` action with `option: "{model}"`. Caller must pass the
+#    EXACT wizard label (case-insensitive, anchored match) -- e.g.
+#    "Claude Sonnet 4.5". Legacy did a substring regex match; we tighten to
+#    exact match because the interpreter's select_dropdown anchors with
+#    ^...$. If a partial label is required, switch to a literal
+#    `select_dropdown` step with a hand-built `option:` value.
+#
+# 3) Token-volume textboxes repeat once per enabled provider block. Legacy
+#    used `.first()` to target the active section. The interpreter's `fill`
+#    does NOT auto-`.first()`, so duplicate labels would throw a strict-mode
+#    violation. We always disable the secondary provider via check_checkbox,
+#    leaving exactly one usage block on screen at fill time.
+#
+# 4) The legacy "Generic" branch (passing any provider name we don't have a
+#    hard-coded case for) is dropped. Schema constrains provider to the two
+#    documented enums; unknown providers fail at schema validation rather
+#    than silently no-op.
+#
+# ----- Defaults ---------------------------------------------------------------
+# Legacy defaults: provider=Anthropic, model=null, requests_per_minute=0,
+# hours_per_day=24, input_tokens=1000, output_tokens=500. Preserved as-is.
+# =============================================================================
+
+service: bedrock
+version: 0.2.0
+
+meta:
+  name: Amazon Bedrock
+  search: Bedrock
+  config_pattern: "Amazon Bedrock"
+  category: ai
+  description: |
+    Foundation-model pricing. Pick a provider (Amazon Nova vs Anthropic
+    Claude), optionally pick a specific model, then describe traffic via
+    requests/min, daily runtime hours, and input/output tokens per request.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: provider
+    type: enum
+    default: Anthropic
+    description: |
+      Foundation-model provider. Wizard default is Amazon (checked) with
+      Anthropic unchecked; YAML default is Anthropic, so we always flip
+      both checkboxes to land in the requested single-provider state.
+    options:
+      - { value: Amazon,    label: "Amazon" }
+      - { value: Anthropic, label: "Anthropic", default: true }
+    # No `ui:` block - provider drives two explicit check_checkbox steps
+    # below (Playwright CSS :near pseudo) rather than a single auto-emitted
+    # step, because the checkboxes have no accessible name.
+
+  - id: model
+    type: string
+    optional: true
+    description: |
+      Exact wizard label of the model to select (case-insensitive). E.g.
+      "Claude Sonnet 4.5", "Nova Pro". Leave null to keep the wizard's
+      default selection. Driven by a raw select_dropdown action below.
+    # No `ui:` - the dropdown is driven via a single literal flow step that
+    # interpolates {model} into the option matcher.
+
+  - id: requests_per_minute
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Average requests per minute.
+    ui:
+      kind: text
+      locator: { role: textbox, name: "Average requests per minute", first: true }
+
+  - id: hours_per_day
+    type: number
+    default: 24
+    constraints: { min: 0, max: 24 }
+    description: Hours per day at the above request rate.
+    ui:
+      kind: text
+      locator: { role: textbox, name: "Hours per day at this rate", first: true }
+
+  - id: input_tokens_per_request
+    type: integer
+    default: 1000
+    constraints: { min: 0 }
+    description: Average input tokens per request.
+    ui:
+      kind: text
+      locator: { role: textbox, name: "Average input tokens per request", first: true }
+
+  - id: output_tokens_per_request
+    type: integer
+    default: 500
+    constraints: { min: 0 }
+    description: Average output tokens per request.
+    ui:
+      kind: text
+      locator: { role: textbox, name: "Average output tokens per request", first: true }
+
+flow:
+  # ----- Provider selection ------------------------------------------------
+  # The checkboxes have no accessible name; use Playwright's CSS `:near()`
+  # pseudo to find the checkbox closest to the visible provider label.
+  # check_checkbox is idempotent, so re-running with the same state is a
+  # no-op. We always flip BOTH so exactly one usage block remains rendered
+  # (avoids strict-mode locator collisions on the shared token textboxes).
+  - when: "provider == 'Amazon'"
+    action: check_checkbox
+    css: 'input[type="checkbox"]:near(:text-is("Amazon"))'
+    value: true
+  - when: "provider == 'Amazon'"
+    action: check_checkbox
+    css: 'input[type="checkbox"]:near(:text-is("Anthropic"))'
+    value: false
+
+  - when: "provider == 'Anthropic'"
+    action: check_checkbox
+    css: 'input[type="checkbox"]:near(:text-is("Anthropic"))'
+    value: true
+  - when: "provider == 'Anthropic'"
+    action: check_checkbox
+    css: 'input[type="checkbox"]:near(:text-is("Amazon"))'
+    value: false
+
+  - { action: wait_ms, ms: 1500 }
+
+  # ----- Model selection ---------------------------------------------------
+  # Raw select_dropdown so {model} can be interpolated. Button label is
+  # "Select Model" before a pick and "Selected Model: <name>" after, hence
+  # the regex trigger name.
+  - when: "model != null"
+    action: select_dropdown
+    trigger: { role: button, name: { regex: "^(Select|Selected) Model", flags: "i" }, first: true }
+    option: "{model}"
+    open_wait_ms: 1200
+    settle_ms: 600
+
+  # ----- Traffic shape -----------------------------------------------------
+  # Each fill is guarded by `> 0` to mirror the legacy handler's skip-zero
+  # behavior. hours_per_day default is 24 (legacy), so always applied unless
+  # explicitly set to 0.
+  - apply: requests_per_minute
+    when: "requests_per_minute > 0"
+  - apply: hours_per_day
+    when: "hours_per_day > 0"
+  - apply: input_tokens_per_request
+    when: "input_tokens_per_request > 0"
+  - apply: output_tokens_per_request
+    when: "output_tokens_per_request > 0"
+
+  - { action: press_key, key: "Tab" }
+  # 3000ms: token-pricing recalc spans 5+ inputs and a model lookup; mirror
+  # the recalc-heavy precedent (dynamodb / lambda) so total cost settles
+  # before "Save and add service" fires.
+  - { action: wait_ms, ms: 3000 }
+
+# Amazon is the wizard default with its usage block visible immediately, so
+# no health prerequisite is required: model button + the four token-volume
+# textboxes are all on screen at probe time. (Matches legacy: no
+# healthPrerequisite was defined.)
+health_locators:
+  - { role: button,  name: { regex: "^(Select|Selected) Model", flags: "i" }, label: "model selection button" }
+  - { role: textbox, name: "Average requests per minute",       label: "requests per minute textbox" }
+  - { role: textbox, name: "Hours per day at this rate",        label: "hours per day textbox" }
+  - { role: textbox, name: "Average input tokens per request",  label: "input tokens textbox" }
+  - { role: textbox, name: "Average output tokens per request", label: "output tokens textbox" }
