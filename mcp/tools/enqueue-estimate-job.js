@@ -2,13 +2,14 @@ import { randomUUID } from "node:crypto";
 import { getCatalogEntry, listCatalogServices } from "../catalog/index.js";
 import { createJob } from "../jobs/store.js";
 import { run as runJob } from "../jobs/executor.js";
+import { estimateDurationSec } from "../jobs/eta.js";
 
 export const definition = {
   name: "enqueue_estimate_job",
   description:
     "Queue a calculator.aws estimate job for one or more services. " +
     "Pass either { service, params } (single) or { services: [{service, params}, ...] } (combined). " +
-    "Returns a job_id; poll get_job_status until succeeded then read get_job_result.",
+    "Returns a job_id plus estimated_duration_sec (heuristic ETA based on historical job durations); poll get_job_status until succeeded then read get_job_result.",
   inputSchema: {
     type: "object",
     properties: {
@@ -89,6 +90,7 @@ export async function handler(args) {
   });
   setImmediate(() => runJob(id));
 
+  const services = normalized.map((s) => s.service);
   return {
     content: [
       {
@@ -97,7 +99,8 @@ export async function handler(args) {
           {
             job_id: id,
             status: "queued",
-            services: normalized.map((s) => s.service),
+            services,
+            estimated_duration_sec: estimateDurationSec(services),
           },
           null,
           2,

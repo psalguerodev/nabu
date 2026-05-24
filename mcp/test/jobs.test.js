@@ -117,6 +117,8 @@ test("enqueue_estimate_job accepts a services[] array and validates each item", 
     });
     assert.deepEqual(enq.services, ["ec2", "s3"]);
     assert.equal(enq.status, "queued");
+    assert.equal(typeof enq.estimated_duration_sec, "number");
+    assert.ok(enq.estimated_duration_sec > 0, "ETA must be positive");
 
     await assert.rejects(
       callJson(client, "enqueue_estimate_job", {
