@@ -1,0 +1,161 @@
+# =============================================================================
+# Amazon CloudFront — service datasheet
+# =============================================================================
+# Two pricing branches:
+#   payg (Pay as you go) — data out + origin + HTTPS requests
+#   flat — one of 4 plans (Free/Pro/Business/Premium) × quantity
+#
+# Wizard default is Flat Rate; YAML default is payg. We always apply
+# pricing_model so the wizard ends up matching the spec (EBS lesson).
+#
+# For Flat Rate, the textbox label is "<Plan name> Enter quantity" which
+# changes with the selected plan. We emit one conditional fill step per
+# plan to handle the dynamic locator.
+# =============================================================================
+
+service: cloudfront
+version: 0.2.0
+
+meta:
+  name: Amazon CloudFront
+  search: CloudFront
+  config_pattern: "Amazon CloudFront"
+  category: networking
+  description: |
+    CDN distribution sizing. Pay-as-you-go covers data transfer out to
+    the internet, data to origin, and HTTPS request counts. Flat-rate
+    plans are a unit-count under one of 4 tiers.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: pricing_model
+    type: enum
+    default: payg
+    description: Pay-as-you-go vs flat-rate plans. Wizard default is Flat Rate; YAML default is payg, so we always apply.
+    options:
+      - { value: payg, label: "Pay as you go", default: true }
+      - { value: flat, label: "Flat Rate" }
+    ui:
+      kind: radio
+      locator: { role: radio }
+
+  # Pay-as-you-go fields
+  - id: data_out_gb_per_month
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "pricing_model == 'payg'"
+    description: Data transferred to the internet per month (GB).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Data transfer out to internet Value" } }
+
+  - id: data_to_origin_gb_per_month
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "pricing_model == 'payg'"
+    description: Data transferred back to origin per month (GB).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Data transfer out to origin Value" } }
+
+  - id: https_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "pricing_model == 'payg'"
+    description: HTTPS requests per month.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Number of requests \\(HTTPS\\) Value" } }
+
+  # Flat-rate fields. `plan` is consumed via per-plan conditional fill steps
+  # in the flow (the textbox name varies with plan), not via a single
+  # auto-emitted dropdown step.
+  - id: plan
+    type: enum
+    default: free
+    description: Flat-rate plan tier (used when pricing_model='flat').
+    options:
+      - { value: free, label: "Free Plan", default: true }
+      - { value: pro, label: "Pro Plan" }
+      - { value: business, label: "Business Plan" }
+      - { value: premium, label: "Premium Plan" }
+    ui:
+      kind: dropdown
+      # The wizard doesn't have a single plan-picker dropdown; we drive the
+      # plan-specific textbox below. Locator is a no-op for kind=dropdown
+      # because no flow step references `apply: plan`.
+      locator: { role: button, name: "noop" }
+
+  - id: plan_quantity
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    visible_when: "pricing_model == 'flat'"
+    description: Quantity multiplier for the selected flat-rate plan.
+    # No `ui:` — driven by the conditional fill steps below.
+
+flow:
+  # Wizard default is Flat Rate; YAML default is payg. ALWAYS apply
+  # pricing_model so the form ends up matching the spec.
+  - apply: pricing_model
+
+  # Pay-as-you-go branch
+  - apply: data_out_gb_per_month
+    when: "pricing_model == 'payg' && data_out_gb_per_month > 0"
+
+  - apply: data_to_origin_gb_per_month
+    when: "pricing_model == 'payg' && data_to_origin_gb_per_month > 0"
+
+  - apply: https_requests_per_month
+    when: "pricing_model == 'payg' && https_requests_per_month > 0"
+
+  # Flat-rate branch — one fill per plan, gated by plan value, since the
+  # textbox name embeds the plan name and the interpreter can't interpolate
+  # inside a regex.
+  - when: "pricing_model == 'flat' && plan == 'free'"
+    action: fill
+    role: textbox
+    name: { regex: "Free Plan Enter quantity" }
+    value: "{plan_quantity}"
+
+  - when: "pricing_model == 'flat' && plan == 'pro'"
+    action: fill
+    role: textbox
+    name: { regex: "Pro Plan Enter quantity" }
+    value: "{plan_quantity}"
+
+  - when: "pricing_model == 'flat' && plan == 'business'"
+    action: fill
+    role: textbox
+    name: { regex: "Business Plan Enter quantity" }
+    value: "{plan_quantity}"
+
+  - when: "pricing_model == 'flat' && plan == 'premium'"
+    action: fill
+    role: textbox
+    name: { regex: "Premium Plan Enter quantity" }
+    value: "{plan_quantity}"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+# Health probe must put the wizard into the payg branch before probing the
+# payg-specific spinbuttons.
+health_prerequisite_flow:
+  - { action: click, role: radio, name: "Pay as you go" }
+  - { action: wait_ms, ms: 800 }
+
+health_locators:
+  - { role: radio, name: "Pay as you go", label: "Pay as you go pricing radio" }
+  - { role: spinbutton, name: { regex: "Data transfer out to internet Value" }, label: "data out to internet spinbutton" }
+  - { role: spinbutton, name: { regex: "Data transfer out to origin Value" }, label: "data out to origin spinbutton" }
+  - { role: spinbutton, name: { regex: "Number of requests \\(HTTPS\\) Value" }, label: "HTTPS requests spinbutton" }
