@@ -1,0 +1,87 @@
+# =============================================================================
+# AWS X-Ray — service datasheet
+# =============================================================================
+# Migrated from the imperative observability/xray/index.js handler (v0.1.0).
+# Models the four scalar inputs the v0.1 handler covered:
+#   - Number of requests per month (traces recorded after sampling)
+#   - Sampling rate (% of requests sampled)
+#   - Number of queries per month (Insights / trace retrieval)
+#   - Traces retrieved per query
+# No tier toggles, radio groups, or unit dropdowns are exposed by the X-Ray
+# wizard — values are interpreted as plain monthly counts and percentages.
+# Pricing: $5/M traces recorded + $0.50/M traces scanned (queries).
+# =============================================================================
+
+service: xray
+version: 0.2.0
+
+meta:
+  name: AWS X-Ray
+  search: X-Ray
+  config_pattern: "AWS X-Ray"
+  category: observability
+  description: |
+    AWS X-Ray distributed tracing pricing. Surfaces requests per month,
+    sampling rate, query volume and traces retrieved per query.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of requests per month (before sampling).
+    ui:
+      kind: text
+      locator: { role: textbox, name_prefix: "Number of requests per month" }
+
+  - id: sampling_rate
+    type: number
+    default: 100
+    constraints: { min: 0, max: 100 }
+    description: Percentage of requests sampled (0-100).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Sampling rate" }
+
+  - id: queries_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of X-Ray Insights / trace queries per month.
+    ui:
+      kind: text
+      locator: { role: textbox, name_prefix: "Number of queries per month" }
+
+  - id: traces_per_query
+    type: integer
+    default: 100
+    constraints: { min: 0 }
+    description: Average number of traces retrieved per query.
+    ui:
+      kind: text
+      locator: { role: textbox, name_prefix: "Traces retrieved per query" }
+
+flow:
+  - apply: requests_per_month
+    when: "requests_per_month > 0"
+  - apply: sampling_rate
+    when: "sampling_rate != 100"
+  - apply: queries_per_month
+    when: "queries_per_month > 0"
+  - apply: traces_per_query
+    when: "traces_per_query != 100"
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: textbox, name: { regex: "Number of requests per month" }, label: "requests per month textbox" }
+  - { role: spinbutton, name: { regex: "Sampling rate" }, label: "sampling rate spinbutton" }
+  - { role: textbox, name: { regex: "Number of queries per month" }, label: "queries per month textbox" }
+  - { role: textbox, name: { regex: "Traces retrieved per query" }, label: "traces per query textbox" }

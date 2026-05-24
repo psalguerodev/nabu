@@ -1,0 +1,161 @@
+# =============================================================================
+# Amazon Textract — service datasheet
+# =============================================================================
+# Migrated from the imperative ai/textract/index.js handler (v0.1.0).
+# Models one volume input (number of pages per month) and ten per-API
+# distribution percentages. Each percent field corresponds to a Textract
+# API operation; the wizard meters cost per page per enabled operation.
+#
+# No unit dropdowns / tier toggles exist on the Textract wizard — pages
+# are interpreted as monthly counts and percentages are plain 0-100.
+# Pricing reference: DetectDocumentText is $1.50/1000 pages (first 1M).
+# =============================================================================
+
+service: textract
+version: 0.2.0
+
+meta:
+  name: Amazon Textract
+  search: Textract
+  config_pattern: "Amazon Textract"
+  category: ai
+  description: |
+    Amazon Textract pricing — pages per month and per-API distribution
+    percentages (Detect Document Text, Analyze Document, Analyze Expense,
+    Analyze ID, Analyze Lending).
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: number_of_pages
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Total number of pages processed per month.
+    ui:
+      kind: text
+      locator: { role: textbox, name_prefix: "Number of pages" }
+
+  - id: percent_with_text
+    type: number
+    default: 100
+    constraints: { min: 0, max: 100 }
+    description: Percentage of pages run through Detect Document Text API.
+    ui:
+      kind: number
+      locator: { role: spinbutton, first: true, name_prefix: "Percent of pages with text (Detect Document Text API)" }
+
+  - id: percent_with_queries
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: Percentage of pages run through Analyze Document API with Queries.
+    ui:
+      kind: number
+      locator: { role: spinbutton, first: true, name_prefix: "Percent of pages with Queries (Analyze Document API)" }
+
+  - id: percent_with_tables
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: Percentage of pages run through Analyze Document API with Tables.
+    ui:
+      kind: number
+      locator: { role: spinbutton, first: true, name_prefix: "Percent of pages with Tables (Analyze Document API)" }
+
+  - id: percent_with_forms
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: Percentage of pages run through Analyze Document API with Forms.
+    ui:
+      kind: number
+      locator: { role: spinbutton, first: true, name_prefix: "Percent of pages with Forms (Analyze Document API)" }
+
+  - id: percent_with_forms_tables
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: Percentage of pages run through Analyze Document API with Forms and Tables.
+    ui:
+      kind: number
+      locator: { role: spinbutton, first: true, name_prefix: "Percent of pages with Forms and Tables (Analyze Document API)" }
+
+  - id: percent_with_layout
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: Percentage of pages run through Analyze Document API with Layouts.
+    ui:
+      kind: number
+      locator: { role: spinbutton, first: true, name_prefix: "Percent of pages with Layouts (Analyze Document API)" }
+
+  - id: percent_with_expense
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: Percentage of pages run through Analyze Expense API (invoices and receipts).
+    ui:
+      kind: number
+      locator: { role: spinbutton, first: true, name_prefix: "Percent of pages with invoices and receipts (Analyze Expense API)" }
+
+  - id: percent_with_id
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: Percentage of pages run through Analyze ID API (identity documents).
+    ui:
+      kind: number
+      locator: { role: spinbutton, first: true, name_prefix: "Percent of pages with identity documents (Analyze ID API)" }
+
+  - id: percent_with_lending
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: Percentage of pages run through Analyze Lending API.
+    ui:
+      kind: number
+      locator: { role: spinbutton, first: true, name_prefix: "Percent of pages with lending documents (Analyze Lending API)" }
+
+  - id: percent_with_signatures
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: Percentage of pages run through Analyze Document API for Signatures.
+    ui:
+      kind: number
+      locator: { role: spinbutton, first: true, name_prefix: "Percent of pages with signatures (Analyze Document API)" }
+
+flow:
+  - apply: number_of_pages
+  - apply: percent_with_text
+    when: "percent_with_text != 100"
+  - apply: percent_with_queries
+    when: "percent_with_queries > 0"
+  - apply: percent_with_tables
+    when: "percent_with_tables > 0"
+  - apply: percent_with_forms
+    when: "percent_with_forms > 0"
+  - apply: percent_with_forms_tables
+    when: "percent_with_forms_tables > 0"
+  - apply: percent_with_layout
+    when: "percent_with_layout > 0"
+  - apply: percent_with_expense
+    when: "percent_with_expense > 0"
+  - apply: percent_with_id
+    when: "percent_with_id > 0"
+  - apply: percent_with_lending
+    when: "percent_with_lending > 0"
+  - apply: percent_with_signatures
+    when: "percent_with_signatures > 0"
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: textbox, name: { regex: "Number of pages" }, label: "number of pages textbox" }
+  - { role: spinbutton, name: { regex: "Percent of pages with text \\(Detect Document Text API\\)" }, label: "percent with text spinbutton" }

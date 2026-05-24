@@ -1,0 +1,127 @@
+# =============================================================================
+# AWS Lambda — service datasheet
+# =============================================================================
+# Models the v0.1 imperative handler: on-demand invocations per month,
+# average duration (ms), allocated memory (MB), architecture (x86_64/arm64),
+# and the free-tier toggle. Only the on-demand section is driven; the form
+# also shows Provisioned Concurrency and SnapStart sections with identical
+# field labels — `first: true` on each locator pins us to on-demand.
+#
+# v0.2.0 — converted from imperative index.js to YAML datasheet. Original
+# parameter contract preserved: invocations_per_month, avg_duration_ms,
+# memory_mb, architecture. New optional `include_free_tier` (default false)
+# replicates the adapter's hardcoded freeTier=false behavior.
+# =============================================================================
+
+service: lambda
+version: 0.2.0
+
+meta:
+  name: AWS Lambda
+  search: Lambda
+  config_pattern: "AWS Lambda"
+  category: compute
+  description: |
+    Serverless functions — on-demand invocations per month, average
+    duration in ms, memory in MB, architecture (x86_64 or arm64), and
+    whether to include the AWS Lambda free tier in the estimate.
+    Provisioned Concurrency and SnapStart sections are not modeled.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: include_free_tier
+    type: enum
+    default: without
+    description: |
+      Free-tier handling. Default "without" matches the v0.1 handler's
+      hardcoded freeTier=false and clicks the "Lambda Function - Without
+      Free Tier" radio. "include" leaves the wizard's default checked
+      radio in place.
+    options:
+      - { value: include, label: "Lambda Function - Include Free Tier" }
+      - { value: without, label: "Lambda Function - Without Free Tier", default: true }
+    ui:
+      kind: radio_group
+      locator: { role: radio }
+
+  - id: architecture
+    type: enum
+    default: x86_64
+    description: Lambda architecture. The wizard defaults to x86; we only click the dropdown when arm64 is requested.
+    options:
+      - { value: x86_64, label: "x86", default: true }
+      - { value: arm64, label: "arm64" }
+    ui:
+      kind: dropdown
+      # Button label is "Architecture x86" by default but changes with
+      # selection, so match by prefix. `first: true` pins to the on-demand
+      # section (Provisioned Concurrency / SnapStart repeat the field).
+      locator: { role: button, name_prefix: "Architecture", first: true }
+
+  - id: invocations_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of on-demand Lambda invocations per month.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Number of requests Value", first: true }
+
+  - id: avg_duration_ms
+    type: number
+    default: 100
+    constraints: { min: 1 }
+    description: Average duration of each request in milliseconds.
+    ui:
+      kind: text
+      locator: { role: textbox, name_prefix: "Duration of each request (in ms) Enter duration in ms", first: true }
+
+  - id: memory_mb
+    type: integer
+    default: 128
+    constraints: { min: 128, max: 10240 }
+    description: Memory allocated per function in MB. Wizard unit dropdown defaults to MB so no override is needed.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Amount of memory allocated Value", first: true }
+
+flow:
+  # Only click the alternative radio when the caller wants without-free-tier.
+  # Clicking the already-checked "Include Free Tier" radio is a no-op but
+  # we skip it to keep the trace clean.
+  - apply: include_free_tier
+    when: "include_free_tier == 'without'"
+
+  # Architecture: skip entirely when x86_64 (wizard default). The dropdown
+  # compiles to one step per option; gating the flow entry on arm64 means
+  # only the arm64 click is ever emitted-and-eligible.
+  - apply: architecture
+    when: "architecture == 'arm64'"
+
+  - apply: invocations_per_month
+    when: "invocations_per_month > 0"
+
+  - apply: avg_duration_ms
+    when: "avg_duration_ms > 0"
+
+  - apply: memory_mb
+    when: "memory_mb > 0"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  # Radio role is stable across platforms.
+  - { role: radio, name: "Lambda Function - Without Free Tier", label: "Without Free Tier radio" }
+  # CSS for inputs because Chromium's implicit role for these <input>s
+  # varies by platform (textbox on Linux, spinbutton on macOS) — the
+  # broad aria-label match survives both.
+  - { css: 'input[aria-label^="Number of requests Value"]', label: "number of requests input" }
+  - { css: 'input[aria-label^="Duration of each request (in ms)"]', label: "duration of each request input" }
+  - { css: 'input[aria-label^="Amount of memory allocated Value"]', label: "memory allocated input" }

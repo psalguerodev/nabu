@@ -1,0 +1,106 @@
+# =============================================================================
+# AWS WAF — service datasheet
+# =============================================================================
+# Models the v0.1 imperative handler: web ACL count, rules per ACL, rule
+# groups (per ACL and rules-per-group), managed rule groups, and monthly
+# web request volume (in MILLIONS).
+#
+# v0.2.0 — converted from imperative index.js to YAML datasheet. Parameter
+# contract is identical (web_acls, rules_per_acl, rule_groups,
+# rules_per_group, managed_rule_groups, requests_per_month) so existing job
+# specs keep working. requests_per_month is in MILLIONS — the wizard's unit
+# dropdown defaults to "million per month" which matches, so no unit
+# override is needed.
+# =============================================================================
+
+service: waf
+version: 0.2.0
+
+meta:
+  name: AWS WAF
+  search: WAF
+  config_pattern: "AWS WAF"
+  category: security
+  description: |
+    Web Application Firewall sizing — number of Web ACLs, rules per ACL,
+    rule groups (and rules inside each), managed rule groups, and monthly
+    web request volume (in millions).
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: web_acls
+    type: integer
+    default: 1
+    constraints: { min: 0 }
+    description: Number of Web Access Control Lists (Web ACLs) utilized.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Number of Web Access Control Lists" }
+
+  - id: rules_per_acl
+    type: integer
+    default: 5
+    constraints: { min: 0 }
+    description: Number of Rules added per Web ACL.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Number of Rules added per Web ACL" }
+
+  - id: rule_groups
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of Rule Groups per Web ACL.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Number of Rule Groups per Web ACL" }
+
+  - id: rules_per_group
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of Rules inside each Rule Group.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Number of Rules inside each Rule Group" }
+
+  - id: managed_rule_groups
+    type: integer
+    default: 1
+    constraints: { min: 0 }
+    description: Number of Managed Rule Groups per Web ACL.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Number of Managed Rule Groups per Web ACL" }
+
+  - id: requests_per_month
+    type: number
+    default: 1
+    constraints: { min: 0 }
+    description: Monthly web request volume across all web ACLs, expressed in MILLIONS. The wizard's unit dropdown defaults to "million per month" which matches this value as-is.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Number of web requests received" }
+
+flow:
+  - apply: web_acls
+  - apply: rules_per_acl
+  - apply: rule_groups
+  - apply: rules_per_group
+  - apply: managed_rule_groups
+  - apply: requests_per_month
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: spinbutton, name: { regex: "Number of Web Access Control Lists" }, label: "Web ACLs spinbutton" }
+  - { role: spinbutton, name: { regex: "Number of Rules added per Web ACL" }, label: "rules per ACL spinbutton" }
+  - { role: spinbutton, name: { regex: "Number of Managed Rule Groups per Web ACL" }, label: "managed rule groups spinbutton" }
+  - { role: spinbutton, name: { regex: "Number of web requests received" }, label: "web requests spinbutton" }

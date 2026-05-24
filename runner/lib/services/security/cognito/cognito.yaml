@@ -1,0 +1,78 @@
+# =============================================================================
+# Amazon Cognito — service datasheet
+# =============================================================================
+# Migrated from the imperative security/cognito/index.js handler (v0.1.0).
+# Models the three tier choice (Lite / Essentials / Plus), monthly active
+# users (MAU) and SAML/OIDC federation users.
+#
+# The wizard exposes three radio buttons gating the user-pool pricing tier.
+# Lite is the wizard default (matches the v0.1 handler default). Tier
+# selection is ALWAYS applied — even when "lite" — to defend against any
+# stale state in the wizard.
+# =============================================================================
+
+service: cognito
+version: 0.2.0
+
+meta:
+  name: Amazon Cognito
+  search: Cognito
+  config_pattern: "Amazon Cognito"
+  category: security
+  description: |
+    Amazon Cognito user-pool pricing. Surfaces the Lite / Essentials / Plus
+    tier toggle, monthly active users (MAU) and SAML/OIDC federation users.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: tier
+    type: enum
+    default: lite
+    description: User-pool pricing tier. Lite is free up to 10k MAU; Essentials and Plus are metered per MAU.
+    options:
+      - { value: lite, label: "Cognito Lite Tier", default: true }
+      - { value: essentials, label: "Cognito Essentials Tier" }
+      - { value: plus, label: "Cognito Plus Tier" }
+    ui:
+      kind: radio
+      locator: { role: radio }
+
+  - id: mau
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Monthly active users in the selected tier.
+    ui:
+      kind: text
+      locator: { role: textbox, first: true, name_prefix: "Number of monthly active users (MAU) Enter" }
+
+  - id: saml_mau
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: SAML or OIDC federation monthly active users.
+    ui:
+      kind: text
+      locator: { role: textbox, name_prefix: "SAML or OIDC federation" }
+
+flow:
+  - apply: tier
+  - apply: mau
+    when: "mau > 0"
+  - apply: saml_mau
+    when: "saml_mau > 0"
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: radio, name: "Cognito Lite Tier", label: "Lite tier radio" }
+  - { role: radio, name: "Cognito Essentials Tier", label: "Essentials tier radio" }
+  - { role: radio, name: "Cognito Plus Tier", label: "Plus tier radio" }
+  - { role: textbox, name: { regex: "Number of monthly active users \\(MAU\\) Enter" }, label: "MAU textbox" }
+  - { role: textbox, name: { regex: "SAML or OIDC federation" }, label: "SAML/OIDC users textbox" }

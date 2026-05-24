@@ -1,0 +1,94 @@
+# =============================================================================
+# Amazon S3 — service datasheet
+# =============================================================================
+# Models the v0.1 imperative handler: S3 Standard storage (GB/month) plus
+# PUT and GET monthly request counts. Other storage classes / lifecycle /
+# transfer surfaces are deferred.
+#
+# v0.2.0 — converted from imperative index.js to YAML datasheet. Parameter
+# contract is identical (storage_gb, put_requests_per_month,
+# get_requests_per_month) so existing job specs keep working. storage_class
+# is preserved on the Zod schema for backward compat but only `standard` is
+# operational; the wizard's S3 Standard row is the always-on default.
+# =============================================================================
+
+service: s3
+version: 0.2.0
+
+meta:
+  name: Amazon S3
+  search: S3
+  config_pattern: "Amazon S3"
+  category: storage
+  description: |
+    Simple Storage Service — S3 Standard storage volume plus PUT/COPY/POST/LIST
+    and GET/SELECT monthly request counts. Other storage classes
+    (IA/Glacier), data transfer, and lifecycle transitions are not modeled.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: storage_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Average GB stored per month in S3 Standard.
+    ui:
+      kind: number
+      # CSS locator: <input> has a platform-dependent implicit role
+      # (textbox on Linux, spinbutton on macOS) — the css selector survives
+      # both, and the broad aria-label prefix tolerates the "Value" suffix
+      # AWS sometimes appends.
+      locator: { css: 'input[aria-label^="S3 Standard storage"]' }
+
+  - id: storage_class
+    type: enum
+    default: standard
+    description: Storage class (kept for backward compat; only `standard` drives the wizard today).
+    options:
+      - { value: standard, label: "Standard", default: true }
+      - { value: ia, label: "Infrequent Access" }
+      - { value: glacier, label: "Glacier" }
+    ui:
+      kind: section   # no step emitted
+
+  - id: put_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: PUT, COPY, POST, LIST requests per month against S3 Standard.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="PUT, COPY, POST, LIST requests to S3 Standard"]' }
+
+  - id: get_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: GET, SELECT, and all other requests per month from S3 Standard.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="GET, SELECT, and all other requests from S3 Standard"]' }
+
+flow:
+  - apply: storage_gb
+    when: "storage_gb > 0"
+
+  - apply: put_requests_per_month
+    when: "put_requests_per_month > 0"
+
+  - apply: get_requests_per_month
+    when: "get_requests_per_month > 0"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { css: 'input[aria-label^="S3 Standard storage"]', label: "S3 Standard storage input" }
+  - { css: 'input[aria-label^="PUT, COPY, POST, LIST requests to S3 Standard"]', label: "PUT requests input" }
+  - { css: 'input[aria-label^="GET, SELECT, and all other requests from S3 Standard"]', label: "GET requests input" }
