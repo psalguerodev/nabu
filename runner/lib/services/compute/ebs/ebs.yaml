@@ -6,7 +6,7 @@
 # =============================================================================
 
 service: ebs
-version: 0.2.0
+version: 0.2.1
 
 meta:
   name: Amazon Elastic Block Store (EBS)
@@ -76,8 +76,11 @@ fields:
     constraints: { min: 100 }
     description: Provisioned IOPS per volume (gp3/io1/io2 only).
     ui:
-      kind: number
-      locator: { role: spinbutton, name_prefix: "IOPS" }
+      kind: text
+      # Label is "Provisioning IOPS per volume (<type>) Enter amount" — the
+      # (<type>) suffix changes with volume_type, so we match by the stable
+      # prefix.
+      locator: { role: textbox, name: { regex: "^Provisioning IOPS per volume" } }
 
   - id: throughput_mbps
     type: integer
@@ -87,14 +90,18 @@ fields:
     description: Provisioned throughput in MBps (gp3 only).
     ui:
       kind: number
-      locator: { role: spinbutton, name_prefix: "Throughput Value" }
+      # Full label is "General Purpose SSD (gp3) - Throughput Value".
+      locator: { role: spinbutton, name: { regex: " - Throughput Value$" } }
 
 flow:
   - apply: volume_count
   - apply: hours_per_month
     when: "hours_per_month != 730"
+  # Always apply volume_type — the standalone EBS wizard's UI default is
+  # gp2, NOT gp3, so even when the spec matches our YAML default (gp3) we
+  # must click through the dropdown. Skipping leaves the wizard at gp2,
+  # which hides the IOPS / Throughput fields below.
   - apply: volume_type
-    when: "volume_type != 'gp3'"
   - apply: volume_size_gb
   - apply: iops
     when: "iops != null && (volume_type == 'gp3' || volume_type == 'io1' || volume_type == 'io2')"
