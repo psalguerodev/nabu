@@ -35,6 +35,7 @@ export const SERVICE_PATHS = {
   "sagemaker-studio-notebooks": "ai/sagemaker/studio-notebooks",
   "sagemaker-training": "ai/sagemaker/training",
   "secrets-manager": "security/secrets-manager",
+  ses: "messaging/ses",
   "step-functions": "analytics/step-functions",
   "systems-manager": "management/systems-manager",
   textract: "ai/textract",

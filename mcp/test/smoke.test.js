@@ -61,6 +61,7 @@ test("list_supported_services returns the services defined in the catalog", asyn
       "sagemaker-studio-notebooks",
       "sagemaker-training",
       "secrets-manager",
+      "ses",
       "step-functions",
       "systems-manager",
       "textract",
@@ -68,7 +69,7 @@ test("list_supported_services returns the services defined in the catalog", asyn
       "waf",
       "xray",
     ]);
-    assert.equal(payload.count, 33);
+    assert.equal(payload.count, 34);
     assert.equal(payload.catalog_version, "0.1.0");
   } finally {
     await transport.close();

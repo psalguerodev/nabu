@@ -1,0 +1,171 @@
+# =============================================================================
+# Amazon Simple Email Service (SES) — service datasheet
+# =============================================================================
+# v1 scope: outbound + inbound email send paths and dedicated IP pools, the
+# pricing-relevant surface for a typical notification workload.
+#
+# NOT modeled (v1):
+#   - Open Ingress Endpoints (advanced ingress)
+#   - Email Processing via Mail Manager (separate product)
+#   - Email archive (Insertion + Storage)
+#   - Virtual Deliverability Manager (toggle Disable/Enable; default Disable)
+#   - "Sent from EC2" tier (legacy free-from-EC2 surface; callers use the
+#     normal "sent from email client" path)
+#
+# Every numeric input on the SES wizard is paired with a Unit dropdown. We
+# always click the unit step explicitly when the value is non-zero rather
+# than trusting the wizard's default — see the Systems Manager lesson in
+# CLAUDE.md.
+# =============================================================================
+
+service: ses
+version: 0.2.0
+
+meta:
+  name: Amazon Simple Email Service (SES)
+  search: Simple Email
+  config_pattern: "Amazon Simple Email Service \\(SES\\)"
+  category: messaging
+  description: |
+    Amazon SES outbound + inbound email volume and dedicated IP pools.
+    Pricing: $0.10 per 1k outbound, $0.10 per 1k inbound, $0.12/GB
+    attachment, $24.95/month per dedicated IP (standard).
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  # ---- Outbound (email client) -----------------------------------------
+  - id: emails_sent_from_client
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Outbound email messages sent via SMTP/API from your application.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Email messages sent from email client Value" } }
+
+  - id: emails_sent_from_client_unit
+    type: enum
+    default: per_month
+    description: Unit for emails_sent_from_client. Wizard default is per month.
+    options:
+      - { value: per_day,   label: "per day" }
+      - { value: per_week,  label: "per week" }
+      - { value: per_month, label: "per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Email messages sent from email client" } }
+
+  - id: attachment_gb_from_client
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Total attachment data sent from email client, in GB.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Attachment data sent from email client Value" } }
+
+  - id: attachment_gb_from_client_unit
+    type: enum
+    default: gb_per_month
+    description: Unit for attachment_gb_from_client. Wizard default GB per month.
+    options:
+      - { value: gb_per_day,   label: "GB per day" }
+      - { value: gb_per_week,  label: "GB per week" }
+      - { value: gb_per_month, label: "GB per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Attachment data sent from email client" } }
+
+  # ---- Inbound ----------------------------------------------------------
+  - id: emails_received
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Inbound email messages received through SES.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Email messages received Value" } }
+
+  - id: emails_received_unit
+    type: enum
+    default: per_month
+    description: Unit for emails_received.
+    options:
+      - { value: per_day,   label: "per day" }
+      - { value: per_week,  label: "per week" }
+      - { value: per_month, label: "per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Email messages received" } }
+
+  # ---- Dedicated IPs (managed) -----------------------------------------
+  - id: emails_via_dedicated_ips_managed
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      Outbound emails sent through SES Dedicated IPs (managed pool).
+      Billed in addition to the standard outbound rate.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Email message sent via dedicated IPs \\(managed\\) Value" } }
+
+  - id: emails_via_dedicated_ips_managed_unit
+    type: enum
+    default: per_month
+    description: Unit for emails_via_dedicated_ips_managed.
+    options:
+      - { value: per_day,   label: "per day" }
+      - { value: per_week,  label: "per week" }
+      - { value: per_month, label: "per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Email message sent via dedicated IPs" } }
+
+  # ---- Dedicated IPs (standard, flat per-IP/month) ---------------------
+  - id: dedicated_ips_standard_count
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of standard dedicated IP addresses ($24.95/IP/month).
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of dedicated IP\\(standard\\) addresses Enter amount" } }
+
+flow:
+  - apply: emails_sent_from_client
+    when: "emails_sent_from_client > 0"
+  - apply: emails_sent_from_client_unit
+    when: "emails_sent_from_client > 0"
+
+  - apply: attachment_gb_from_client
+    when: "attachment_gb_from_client > 0"
+  - apply: attachment_gb_from_client_unit
+    when: "attachment_gb_from_client > 0"
+
+  - apply: emails_received
+    when: "emails_received > 0"
+  - apply: emails_received_unit
+    when: "emails_received > 0"
+
+  - apply: emails_via_dedicated_ips_managed
+    when: "emails_via_dedicated_ips_managed > 0"
+  - apply: emails_via_dedicated_ips_managed_unit
+    when: "emails_via_dedicated_ips_managed > 0"
+
+  - apply: dedicated_ips_standard_count
+    when: "dedicated_ips_standard_count > 0"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: spinbutton, name: { regex: "Email messages sent from email client Value" }, label: "outbound emails spinbutton" }
+  - { role: spinbutton, name: { regex: "Email messages received Value" }, label: "inbound emails spinbutton" }
+  - { role: textbox,    name: { regex: "Number of dedicated IP\\(standard\\) addresses" }, label: "dedicated IPs textbox" }

@@ -163,6 +163,12 @@
       "status": "schema-only",
       "tags": ["security", "secrets"]
     },
+    "ses": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/ses.js",
+      "status": "schema-only",
+      "tags": ["messaging", "email"]
+    },
     "step-functions": {
       "handler_version": "0.0.0",
       "schema_ref": "schemas/step-functions.js",
