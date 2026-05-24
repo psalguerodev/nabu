@@ -1,0 +1,108 @@
+# =============================================================================
+# Amazon API Gateway — service datasheet
+# =============================================================================
+# Models the v0.1 imperative handler. The wizard shows 3 sections (HTTP API,
+# REST API, WebSocket) that reuse the same label "Requests Value" / "Messages
+# Value" — `first: true` and `nth` disambiguate.
+# =============================================================================
+
+service: api-gateway
+version: 0.2.0
+
+meta:
+  name: Amazon API Gateway
+  search: API Gateway
+  config_pattern: "Amazon API Gateway"
+  category: networking
+  description: |
+    HTTP API + REST API + WebSocket API endpoint sizing. Values are passed
+    in the units the wizard defaults to: HTTP/REST in millions per month,
+    WebSocket in thousands per second.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: http_requests_millions_per_month
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: HTTP API requests, in millions per month (wizard default unit).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Requests Value" }, first: true }
+
+  - id: avg_request_size_kb
+    type: number
+    default: 34
+    constraints: { min: 0.1 }
+    description: Average request payload size in KB. Wizard default 34.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Average size of each request" } }
+
+  - id: rest_requests_millions_per_month
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: REST API requests, in millions per month (wizard default unit).
+    ui:
+      kind: number
+      # Second occurrence of "Requests Value" — REST API section follows HTTP.
+      locator: { role: spinbutton, name: { regex: "Requests Value" }, nth: 1 }
+
+  - id: cache_gb
+    type: enum
+    default: None
+    description: REST API caching size. "None" disables the cache.
+    options:
+      - { value: None,  label: "None", default: true }
+      - { value: "0.5",  label: "0.5" }
+      - { value: "1.6",  label: "1.6" }
+      - { value: "6.1",  label: "6.1" }
+      - { value: "13.5", label: "13.5" }
+      - { value: "28.4", label: "28.4" }
+      - { value: "58.2", label: "58.2" }
+      - { value: "118",  label: "118" }
+      - { value: "237",  label: "237" }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "Cache memory size" } }
+
+  - id: websocket_messages_thousands_per_sec
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: WebSocket messages, in thousands per second (wizard default unit).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Messages Value" } }
+
+flow:
+  - apply: http_requests_millions_per_month
+    when: "http_requests_millions_per_month > 0"
+
+  - apply: avg_request_size_kb
+    when: "avg_request_size_kb != 34"
+
+  - apply: rest_requests_millions_per_month
+    when: "rest_requests_millions_per_month > 0"
+
+  - apply: cache_gb
+    when: "cache_gb != 'None'"
+
+  - apply: websocket_messages_thousands_per_sec
+    when: "websocket_messages_thousands_per_sec > 0"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: spinbutton, name: { regex: "Requests Value" }, label: "HTTP/REST requests spinbutton" }
+  - { role: spinbutton, name: { regex: "Average size of each request" }, label: "average request size spinbutton" }
+  - { role: button, name: { regex: "Cache memory size" }, label: "cache memory size dropdown" }
+  - { role: spinbutton, name: { regex: "Messages Value" }, label: "WebSocket messages spinbutton" }
