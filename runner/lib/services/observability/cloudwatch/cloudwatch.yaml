@@ -1,0 +1,56 @@
+# =============================================================================
+# Amazon CloudWatch — service datasheet
+# =============================================================================
+# Migrated from the imperative observability/cloudwatch/index.js handler
+# (v0.1.0). Two metered inputs: custom/detailed metrics and "other API
+# requests". Both are optional; when the value is the wizard default (0)
+# we skip the fill to keep parity with the legacy handler.
+# =============================================================================
+
+service: cloudwatch
+version: 0.2.0
+
+meta:
+  name: Amazon CloudWatch
+  search: CloudWatch
+  config_pattern: "Amazon CloudWatch"
+  category: observability
+  description: |
+    CloudWatch metrics + API requests pricing. Only the two scalar
+    inputs surfaced by the v0.1 handler are modeled.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: metrics
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Custom / detailed metrics.
+    ui:
+      kind: number
+      locator: { role: textbox, name: { regex: "Number of Metrics.*Enter the amount" } }
+
+  - id: api_requests
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of other API requests.
+    ui:
+      kind: number
+      locator: { role: textbox, name: { regex: "Number of other API requests" } }
+
+flow:
+  - apply: metrics
+    when: "metrics > 0"
+  - apply: api_requests
+    when: "api_requests > 0"
+
+health_locators:
+  - { role: textbox, name: { regex: "Number of Metrics.*Enter the amount" }, label: "number of metrics textbox" }
+  - { role: textbox, name: { regex: "Number of other API requests" }, label: "API requests textbox" }

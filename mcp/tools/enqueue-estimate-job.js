@@ -21,6 +21,11 @@ export const definition = {
           properties: {
             service: { type: "string" },
             params: { type: "object" },
+            group: {
+              type: "string",
+              description:
+                "Optional group name. Consecutive services sharing the same group are placed under the same calculator.aws group section.",
+            },
           },
           required: ["service", "params"],
         },
@@ -44,7 +49,7 @@ export async function handler(args) {
 
   const normalized = [];
   const errors = [];
-  for (const [i, { service, params }] of items.entries()) {
+  for (const [i, { service, params, group }] of items.entries()) {
     const entry = service && getCatalogEntry(service);
     if (!entry) {
       errors.push(
@@ -61,7 +66,11 @@ export async function handler(args) {
       }
       continue;
     }
-    normalized.push({ service, params: parsed.data });
+    normalized.push({
+      service,
+      params: parsed.data,
+      ...(group ? { group } : {}),
+    });
   }
   if (errors.length) {
     const err = new Error(`Invalid params: ${errors.join("; ")}`);
@@ -100,7 +109,11 @@ export async function handler(args) {
 
 function normalizeItems(args) {
   if (args?.services && Array.isArray(args.services)) {
-    return args.services.map((s) => ({ service: s.service, params: s.params }));
+    return args.services.map((s) => ({
+      service: s.service,
+      params: s.params,
+      group: s.group,
+    }));
   }
   if (args?.service) {
     return [{ service: args.service, params: args.params }];

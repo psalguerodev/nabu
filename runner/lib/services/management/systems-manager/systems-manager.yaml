@@ -1,0 +1,115 @@
+# =============================================================================
+# AWS Systems Manager — service datasheet
+# =============================================================================
+# Models the Parameter Store surface that the v0.1 JS handler covered:
+# standard parameters, advanced parameters, and API interaction frequency.
+# The "Parameter Store" feature is checked by default on the calculator
+# form, so no toggle is required.
+#
+# v0.2.1 — explicit api_interactions_unit (was implicitly per-minute,
+# inflating costs ~43,800×). New default is per_month so the value passed
+# is the realistic monthly count.
+# =============================================================================
+
+service: systems-manager
+version: 0.2.1
+
+meta:
+  name: AWS Systems Manager
+  search: Systems Manager
+  config_pattern: "AWS Systems Manager"
+  category: management
+  description: |
+    Parameter Store sizing — standard and advanced parameter counts plus
+    API interaction frequency (with explicit time unit) and throughput
+    tier. Other Systems Manager features (Patch Manager, OpsCenter, etc.)
+    are not modeled.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: api_throughput
+    type: enum
+    default: standard
+    description: API throughput tier. Standard is free up to a quota; High Throughput is metered per interaction.
+    options:
+      - { value: standard, label: "Standard Throughput API Interactions Enabled", default: true }
+      - { value: high, label: "High Throughput API Interactions Enabled" }
+    ui:
+      kind: radio
+      locator: { role: radio }
+
+  - id: standard_params
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of standard Parameter Store parameters.
+    ui:
+      kind: text
+      locator: { role: textbox, name_prefix: "Standard parameters" }
+
+  - id: advanced_params
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of advanced Parameter Store parameters.
+    ui:
+      kind: text
+      locator: { role: textbox, name_prefix: "Advanced parameters" }
+
+  - id: api_interactions_per_param
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: API interactions per parameter, in the unit selected by api_interactions_unit.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Frequency of API interactions per parameter Value" }
+
+  - id: api_interactions_unit
+    type: enum
+    default: per_month
+    description: Time unit for api_interactions_per_param. Default is per_month so callers pass realistic counts; the wizard's UI default is per_minute, so the runner always sets this explicitly.
+    options:
+      - { value: per_second, label: "per second" }
+      - { value: per_minute, label: "per minute" }
+      - { value: per_hour, label: "per hour" }
+      - { value: per_day, label: "per day" }
+      - { value: per_month, label: "per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name_prefix: "Frequency of API interactions per parameter Unit" }
+
+flow:
+  - apply: api_throughput
+    when: "api_throughput != 'standard'"
+
+  - apply: standard_params
+    when: "standard_params > 0"
+
+  - apply: advanced_params
+    when: "advanced_params > 0"
+
+  - apply: api_interactions_per_param
+    when: "api_interactions_per_param > 0"
+
+  # Always apply the unit dropdown when interactions are requested — the
+  # wizard's default ("per minute") differs from the YAML default
+  # ("per_month"), so skipping the click would silently inflate the cost
+  # by a factor of ~43,800.
+  - apply: api_interactions_unit
+    when: "api_interactions_per_param > 0"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: textbox, name: { regex: "Standard parameters" }, label: "standard parameters textbox" }
+  - { role: textbox, name: { regex: "Advanced parameters" }, label: "advanced parameters textbox" }
+  - { role: spinbutton, name: { regex: "Frequency of API interactions" }, label: "API interactions spinbutton" }
+  - { role: button, name: { regex: "^Frequency of API interactions per parameter Unit" }, label: "API interactions unit dropdown" }

@@ -44,6 +44,7 @@ test("list_supported_services returns the services defined in the catalog", asyn
       "cloudwatch",
       "cognito",
       "dynamodb",
+      "ebs",
       "ec2",
       "ecr",
       "eventbridge",
@@ -53,6 +54,12 @@ test("list_supported_services returns the services defined in the catalog", asyn
       "s3",
       "s3-vectors",
       "sagemaker-async",
+      "sagemaker-batch-transform",
+      "sagemaker-on-demand-notebooks",
+      "sagemaker-real-time-inference",
+      "sagemaker-serverless-inference",
+      "sagemaker-studio-notebooks",
+      "sagemaker-training",
       "secrets-manager",
       "step-functions",
       "systems-manager",
@@ -61,7 +68,7 @@ test("list_supported_services returns the services defined in the catalog", asyn
       "waf",
       "xray",
     ]);
-    assert.equal(payload.count, 26);
+    assert.equal(payload.count, 33);
     assert.equal(payload.catalog_version, "0.1.0");
   } finally {
     await transport.close();

@@ -30,6 +30,15 @@
 
 const DEFAULT_TIMEOUT_MS = 2500;
 
+function compileName(name) {
+  if (name == null) return undefined;
+  if (typeof name === "string" || name instanceof RegExp) return name;
+  if (typeof name === "object" && typeof name.regex === "string") {
+    return new RegExp(name.regex, name.flags || "");
+  }
+  return name;
+}
+
 export async function checkLocators(page, locators, { timeout = DEFAULT_TIMEOUT_MS } = {}) {
   const missing = [];
   for (const entry of locators ?? []) {
@@ -37,7 +46,7 @@ export async function checkLocators(page, locators, { timeout = DEFAULT_TIMEOUT_
     if (entry.css) {
       locator = page.locator(entry.css);
     } else if (entry.role) {
-      locator = page.getByRole(entry.role, { name: entry.name });
+      locator = page.getByRole(entry.role, { name: compileName(entry.name) });
     } else {
       missing.push(entry.label || "(invalid locator)");
       continue;

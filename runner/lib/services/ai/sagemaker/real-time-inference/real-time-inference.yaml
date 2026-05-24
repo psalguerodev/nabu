@@ -1,0 +1,107 @@
+extends: ../_base.yaml
+
+service: sagemaker-real-time-inference
+version: 0.2.0
+
+meta:
+  description: SageMaker Real-Time Inference endpoints.
+
+activates:
+  sageMakerStudioNotebooks: false
+  sageMakerOnDemandNotebookInstances: false
+  sageMakerRealTimeInference: true
+
+ready_text: "Number of models deployed"
+
+fields:
+  - id: models_deployed
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Number of models deployed" }
+
+  - id: models_per_endpoint
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Number of models per endpoint" }
+
+  - id: instances_per_endpoint
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Number of instances per endpoint" }
+
+  - id: hours_per_day
+    type: number
+    default: 24
+    constraints: { min: 0, max: 24 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Endpoint hour(s) per day" }
+
+  - id: days_per_month
+    type: number
+    default: 30
+    constraints: { min: 0, max: 31 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Endpoint day(s) per month" }
+
+  - id: instance_type
+    type: string
+    default: ml.m5.large
+    ui:
+      kind: combobox
+      locator: { role: combobox, name: "Select an instance" }
+
+  - id: storage_amount_gb
+    type: number
+    default: 50
+    constraints: { min: 0 }
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Storage amount Value" }
+
+  - id: data_in_gb
+    type: number
+    optional: true
+    constraints: { min: 0 }
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Data Processed IN Value" }
+
+  - id: data_out_gb
+    type: number
+    optional: true
+    constraints: { min: 0 }
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Data Processed OUT Value" }
+
+flow:
+  - apply: models_deployed
+  - apply: models_per_endpoint
+  - apply: instances_per_endpoint
+  - apply: hours_per_day
+  - apply: days_per_month
+  - apply: instance_type
+  - apply: storage_amount_gb
+  - apply: data_in_gb
+    when: "data_in_gb != null && data_in_gb > 0"
+  - apply: data_out_gb
+    when: "data_out_gb != null && data_out_gb > 0"
+
+health_locators:
+  - { role: textbox, name: { regex: "Number of models deployed" }, label: "models deployed textbox" }
+  - { role: textbox, name: { regex: "Number of models per endpoint" }, label: "models per endpoint textbox" }
+  - { role: textbox, name: { regex: "Number of instances per endpoint" }, label: "instances per endpoint textbox" }
+  - { role: textbox, name: { regex: "Endpoint hour\\(s\\) per day" }, label: "endpoint hours per day textbox" }
+  - { role: textbox, name: { regex: "Endpoint day\\(s\\) per month" }, label: "endpoint days per month textbox" }
+  - { role: combobox, name: "Select an instance", label: "instance type combobox" }

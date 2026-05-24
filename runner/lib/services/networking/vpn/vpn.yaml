@@ -1,0 +1,67 @@
+# =============================================================================
+# Amazon VPN (Site-to-Site VPN) — service datasheet
+# =============================================================================
+# Migrated from the imperative networking/vpn/index.js handler (v0.1.1).
+# The calculator's "Amazon Virtual Private Cloud" wizard hosts multiple
+# sub-services; VPN Connection is checked by default. Two scalar inputs:
+# number of connections and average hours/day per connection. CSS locators
+# are used (rather than role=textbox + name) because the legacy probe
+# proved more robust against platform-specific implicit roles.
+# =============================================================================
+
+service: vpn
+version: 0.2.0
+
+meta:
+  name: Amazon VPN (Site-to-Site)
+  search: VPN
+  config_pattern: "Amazon Virtual Private Cloud"
+  category: networking
+  description: |
+    Site-to-Site VPN connection pricing. The VPC wizard hosts the form;
+    VPN Connection is enabled by default.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: site_to_site_connections
+    type: integer
+    default: 1
+    constraints: { min: 0 }
+    description: Number of Site-to-Site VPN connections.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label*="Number of Site-to-Site VPN Connections"]' }
+
+  - id: hours_per_day
+    type: number
+    default: 24
+    constraints: { min: 0, max: 24 }
+    description: Average duration each connection is active per day (hours).
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label*="Average duration for each connection"]' }
+
+# The VPN wizard nests the connection fields below a sub-service toggle grid
+# that lazy-renders. Scroll past it before applying any field so the inputs
+# are mounted. Same prerequisite is reused by the daily health probe.
+flow:
+  - { action: scroll, dy: 600 }
+  - { action: wait_ms, ms: 400 }
+  - apply: site_to_site_connections
+    when: "site_to_site_connections > 0"
+  - apply: hours_per_day
+    when: "hours_per_day != 24"
+
+health_prerequisite_flow:
+  - { action: scroll, dy: 600 }
+  - { action: wait_ms, ms: 400 }
+
+health_locators:
+  - { css: 'input[aria-label*="Number of Site-to-Site VPN Connections"]', label: "Site-to-Site VPN connections input" }
+  - { css: 'input[aria-label*="Average duration for each connection"]', label: "average connection duration input" }

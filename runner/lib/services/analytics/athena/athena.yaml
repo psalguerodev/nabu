@@ -1,0 +1,81 @@
+# =============================================================================
+# Amazon Athena — service datasheet
+# =============================================================================
+# Interactive SQL query service. Pricing is driven by the number of queries
+# and the average amount of data scanned per query.
+# =============================================================================
+
+service: athena
+version: 0.2.0
+
+meta:
+  name: Amazon Athena
+  search: Athena
+  config_pattern: "Amazon Athena"
+  category: analytics
+  description: |
+    Serverless interactive query service. The calculator's "Total number of
+    queries" field defaults to a per-day unit, so `queries_per_day` maps
+    directly. `queries_per_month` is accepted as a legacy alias and, when
+    `queries_per_day` is 0, its raw value is filled into the same field
+    (the calculator's unit selector controls the actual interpretation).
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: queries_per_day
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of queries executed per day.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Total number of queries Value" }
+
+  - id: queries_per_month
+    type: number
+    default: 0
+    legacy: true
+    constraints: { min: 0 }
+    description: |
+      Legacy v0.1 param. When > 0 and `queries_per_day` is 0, the raw
+      value is filled into the "Total number of queries" field as-is.
+      The declarative interpreter does not perform arithmetic, so callers
+      that need a true per-day conversion should pre-divide and pass
+      `queries_per_day`.
+
+  - id: data_scanned_per_query_gb
+    type: number
+    default: 1
+    constraints: { min: 0 }
+    description: Average amount of data scanned per query (GB).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Amount of data scanned per query Value" }
+
+flow:
+  - apply: queries_per_day
+    when: "queries_per_day > 0"
+
+  # Legacy bridge: queries_per_month was the v0.1 unit. If the caller passes
+  # it (and didn't pass queries_per_day), fill the field with its raw value.
+  - action: fill
+    when: "queries_per_day == 0 && queries_per_month > 0"
+    role: spinbutton
+    name: { regex: "Total number of queries Value" }
+    value: "{queries_per_month}"
+
+  - apply: data_scanned_per_query_gb
+    when: "data_scanned_per_query_gb > 0"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: spinbutton, name: { regex: "Total number of queries Value" }, label: "total queries spinbutton" }
+  - { role: spinbutton, name: { regex: "Amount of data scanned per query Value" }, label: "data scanned per query spinbutton" }

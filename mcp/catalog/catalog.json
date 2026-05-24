@@ -61,6 +61,12 @@
       "status": "schema-only",
       "tags": ["database", "nosql"]
     },
+    "ebs": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/ebs.js",
+      "status": "schema-only",
+      "tags": ["storage", "compute"]
+    },
     "ec2": {
       "handler_version": "0.0.0",
       "schema_ref": "schemas/ec2.js",
@@ -112,6 +118,42 @@
     "sagemaker-async": {
       "handler_version": "0.0.0",
       "schema_ref": "schemas/sagemaker-async.js",
+      "status": "schema-only",
+      "tags": ["ai", "ml"]
+    },
+    "sagemaker-batch-transform": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/sagemaker-batch-transform.js",
+      "status": "schema-only",
+      "tags": ["ai", "ml"]
+    },
+    "sagemaker-on-demand-notebooks": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/sagemaker-on-demand-notebooks.js",
+      "status": "schema-only",
+      "tags": ["ai", "ml"]
+    },
+    "sagemaker-real-time-inference": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/sagemaker-real-time-inference.js",
+      "status": "schema-only",
+      "tags": ["ai", "ml"]
+    },
+    "sagemaker-serverless-inference": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/sagemaker-serverless-inference.js",
+      "status": "schema-only",
+      "tags": ["ai", "ml"]
+    },
+    "sagemaker-studio-notebooks": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/sagemaker-studio-notebooks.js",
+      "status": "schema-only",
+      "tags": ["ai", "ml"]
+    },
+    "sagemaker-training": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/sagemaker-training.js",
       "status": "schema-only",
       "tags": ["ai", "ml"]
     },

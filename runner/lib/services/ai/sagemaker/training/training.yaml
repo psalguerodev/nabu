@@ -1,0 +1,67 @@
+extends: ../_base.yaml
+
+service: sagemaker-training
+version: 0.2.0
+
+meta:
+  description: SageMaker Training jobs.
+
+activates:
+  sageMakerStudioNotebooks: false
+  sageMakerOnDemandNotebookInstances: false
+  sageMakerTraining: true
+
+ready_text: "Number of training jobs"
+
+fields:
+  - id: jobs_per_month
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Number of training jobs per month" }
+
+  - id: instances_per_job
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Number of instances per job" }
+
+  - id: hours_per_instance
+    type: number
+    default: 1
+    constraints: { min: 0 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Hour(s) per instance per job" }
+
+  - id: instance_type
+    type: string
+    default: ml.m5.large
+    ui:
+      kind: combobox
+      locator: { role: combobox, name: "Select an instance" }
+
+  - id: storage_amount_gb
+    type: number
+    default: 50
+    constraints: { min: 0 }
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Storage amount Value" }
+
+flow:
+  - apply: jobs_per_month
+  - apply: instances_per_job
+  - apply: hours_per_instance
+  - apply: instance_type
+  - apply: storage_amount_gb
+
+health_locators:
+  - { role: textbox, name: { regex: "Number of training jobs per month" }, label: "training jobs textbox" }
+  - { role: textbox, name: { regex: "Number of instances per job" }, label: "instances per job textbox" }
+  - { role: textbox, name: { regex: "Hour\\(s\\) per instance per job" }, label: "hours per instance textbox" }
+  - { role: combobox, name: "Select an instance", label: "instance type combobox" }

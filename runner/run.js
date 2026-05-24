@@ -18,6 +18,10 @@
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createEstimate } from "./lib/calculator.js";
+import {
+  importHandlerModule,
+  resolveHandlerSource,
+} from "./lib/datasheet.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVICES_DIR = join(HERE, "lib", "services");
@@ -36,10 +40,29 @@ async function loadHandlerModule(service, explicitPath) {
   if (!/^[a-z0-9-]+$/.test(service)) {
     throw new Error(`Invalid service name: ${service}`);
   }
-  const path = explicitPath || join(SERVICES_DIR, `${service}.js`);
+  let path = explicitPath;
+  if (!path) {
+    // Consult the service registry to resolve folder-based layout
+    // (ai/sagemaker/async, compute/ec2, …). MCP-driven jobs pass
+    // handler_path explicitly so they bypass this; direct stdin invocations
+    // (CLI / tests) land here.
+    const { pathFor } = await import(join(SERVICES_DIR, "registry.js"));
+    const sub = pathFor(service);
+    if (!sub) {
+      throw new Error(`Service '${service}' is not in runner/lib/services/registry.js`);
+    }
+    // Prefer imperative index.js, fall back to declarative <leaf>.yaml.
+    const src = resolveHandlerSource(join(SERVICES_DIR, sub));
+    if (!src) {
+      throw new Error(
+        `No handler found for '${service}' in ${join(SERVICES_DIR, sub)}`,
+      );
+    }
+    path = src.path;
+  }
   let mod;
   try {
-    mod = await import(path);
+    mod = await importHandlerModule(path);
   } catch (err) {
     throw new Error(
       `Cannot load handler for '${service}' at ${path}: ${err.message}`,
@@ -75,7 +98,7 @@ async function main() {
   });
 
   const resolved = [];
-  for (const { service, params, handler_path } of services) {
+  for (const { service, params, handler_path, group } of services) {
     let mod;
     try {
       mod = await loadHandlerModule(service, handler_path);
@@ -88,6 +111,7 @@ async function main() {
       service,
       region: params?.region,
       handler: mod.handler,
+      ...(group ? { group } : {}),
       ...camelConfig,
     });
   }

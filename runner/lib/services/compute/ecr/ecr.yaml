@@ -1,0 +1,44 @@
+# =============================================================================
+# Amazon Elastic Container Registry (ECR) — service datasheet
+# =============================================================================
+# Migrated from the imperative compute/ecr/index.js handler (v0.1.0). Single
+# metered input: storage GB. Trailing Tab + 500ms wait commits the field
+# before the wizard saves (mirrors the legacy handler).
+# =============================================================================
+
+service: ecr
+version: 0.2.0
+
+meta:
+  name: Amazon Elastic Container Registry (ECR)
+  search: Elastic Container Registry
+  config_pattern: "Amazon Elastic Container Registry"
+  category: compute
+  description: |
+    Container image registry storage pricing.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: storage_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Amount of data stored (GB).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Amount of data stored" } }
+
+flow:
+  - apply: storage_gb
+    when: "storage_gb > 0"
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: spinbutton, name: { regex: "Amount of data stored" }, label: "data stored spinbutton" }

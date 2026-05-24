@@ -1,0 +1,73 @@
+# =============================================================================
+# AWS Step Functions — service datasheet
+# =============================================================================
+# Serverless workflow orchestration. Pricing varies by workflow type:
+# Standard (per state transition) vs Express (per request + duration).
+# This datasheet only models the Standard Workflows surface that the v0.1
+# JS handler covered — workflow requests, state transitions per workflow,
+# and an opt-in "Express Workflows" enable toggle.
+# =============================================================================
+
+service: step-functions
+version: 0.2.0
+
+meta:
+  name: AWS Step Functions
+  search: Step Functions
+  config_pattern: "AWS Step Functions"
+  category: analytics
+  description: |
+    Serverless workflow orchestration. The default form shows Standard
+    Workflows; setting `express: true` toggles the "Step Functions -
+    Express Workflows" checkbox to opt in to the Express section.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: express
+    type: boolean
+    default: false
+    description: Enable the Express Workflows section.
+    ui:
+      kind: checkbox
+      locator: { role: checkbox, name: "Step Functions - Express Workflows" }
+
+  - id: workflow_requests
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of workflow executions.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Workflow requests Value" }
+
+  - id: transitions_per_workflow
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Average number of state transitions per workflow execution.
+    ui:
+      kind: text
+      locator: { role: textbox, name_prefix: "State transitions per workflow" }
+
+flow:
+  - apply: express
+    when: "express == true"
+
+  - apply: workflow_requests
+    when: "workflow_requests > 0"
+
+  - apply: transitions_per_workflow
+    when: "transitions_per_workflow > 0"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: spinbutton, name: { regex: "Workflow requests Value" }, label: "workflow requests spinbutton" }
+  - { role: textbox, name: { regex: "State transitions per workflow" }, label: "state transitions textbox" }

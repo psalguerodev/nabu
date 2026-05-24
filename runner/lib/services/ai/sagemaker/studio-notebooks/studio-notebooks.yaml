@@ -1,0 +1,67 @@
+extends: ../_base.yaml
+
+service: sagemaker-studio-notebooks
+version: 0.2.0
+
+meta:
+  description: SageMaker Studio Notebooks.
+
+activates:
+  sageMakerStudioNotebooks: true
+  sageMakerOnDemandNotebookInstances: false
+
+ready_text: "Studio Notebook hour"
+
+fields:
+  - id: data_scientists
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Number of data scientist(s)" }
+
+  - id: instances_per_scientist
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Number of Studio Notebook instances per data scientist" }
+
+  - id: hours_per_day
+    type: number
+    default: 8
+    constraints: { min: 0, max: 24 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Studio Notebook hour(s) per day" }
+
+  - id: days_per_month
+    type: number
+    default: 22
+    constraints: { min: 0, max: 31 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Studio Notebook day(s) per month" }
+
+  - id: instance_type
+    type: string
+    default: ml.t3.medium
+    ui:
+      kind: combobox
+      locator: { role: combobox, name: "Select an instance" }
+
+flow:
+  - apply: data_scientists
+  - apply: instances_per_scientist
+  - apply: hours_per_day
+  - apply: days_per_month
+  - apply: instance_type
+
+health_locators:
+  - { role: textbox, name: { regex: "Number of data scientist\\(s\\)" }, label: "data scientists textbox" }
+  - { role: textbox, name: { regex: "Number of Studio Notebook instances per data scientist" }, label: "instances per scientist textbox" }
+  - { role: textbox, name: { regex: "Studio Notebook hour\\(s\\) per day" }, label: "hours per day textbox" }
+  - { role: textbox, name: { regex: "Studio Notebook day\\(s\\) per month" }, label: "days per month textbox" }
+  - { role: combobox, name: "Select an instance", label: "instance type combobox" }

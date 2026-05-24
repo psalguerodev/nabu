@@ -1,0 +1,78 @@
+extends: ../_base.yaml
+
+service: sagemaker-serverless-inference
+version: 0.2.0
+
+meta:
+  description: SageMaker Serverless Inference (pay-per-request).
+
+activates:
+  sageMakerStudioNotebooks: false
+  sageMakerOnDemandNotebookInstances: false
+  sageMakerServerlessInference: true
+
+ready_text: "Number of request per month"
+
+fields:
+  - id: requests_per_month
+    type: integer
+    default: 1000
+    constraints: { min: 1 }
+    description: |
+      Raw monthly request count. The handler rescales for the wizard's
+      "Requests units" dropdown (thousands when < 1M, millions otherwise).
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Number of request per month" }
+
+  - id: duration_ms
+    type: integer
+    default: 100
+    constraints: { min: 1 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Duration of each request" }
+
+  - id: memory_mb
+    type: enum
+    default: "1024"
+    options:
+      - { value: "1024", label: "1024", default: true }
+      - { value: "2048", label: "2048" }
+      - { value: "3072", label: "3072" }
+      - { value: "4096", label: "4096" }
+      - { value: "5120", label: "5120" }
+      - { value: "6144", label: "6144" }
+    ui:
+      kind: dropdown
+      locator: { role: button, name_prefix: "Memory (MB)" }
+
+  - id: provisioned_concurrency
+    type: integer
+    optional: true
+    constraints: { min: 0 }
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Provisioned Concurrency value" }
+
+flow:
+  # Serverless requests count rescaling: the dropdown only has "thousands"
+  # and "millions" — passing 100k as-is with default "millions" inflates
+  # cost by 1000×. The interpreter currently lacks a generic "rescale +
+  # set unit" primitive, so we mirror the rescaling in the handler today
+  # via a tiny computed value. For the experiment we accept the params as
+  # rescaled by the caller (i.e. pass thousands count when <1M, with the
+  # caller picking the units field). The full rescaling logic still lives
+  # in sagemaker-serverless-inference.js v0.1.1; the YAML route covers the
+  # base form and we keep the imperative wrapper for now.
+  - apply: requests_per_month
+  - apply: duration_ms
+  - apply: memory_mb
+    when: "memory_mb != '1024'"
+  - apply: provisioned_concurrency
+    when: "provisioned_concurrency != null && provisioned_concurrency > 0"
+
+health_locators:
+  - { role: textbox, name: { regex: "Number of request per month" }, label: "requests per month textbox" }
+  - { role: textbox, name: { regex: "Duration of each request" }, label: "duration textbox" }
+  - { role: button, name: { regex: "^Memory \\(MB\\)" }, label: "memory dropdown" }

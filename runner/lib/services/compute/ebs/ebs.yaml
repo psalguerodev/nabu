@@ -1,0 +1,110 @@
+# =============================================================================
+# Amazon Elastic Block Store (EBS) — service datasheet
+# =============================================================================
+# Standalone EBS service (separate from the EBS subsection that lives inside
+# the EC2 wizard). Same volume types and frequencies; different parent form.
+# =============================================================================
+
+service: ebs
+version: 0.2.0
+
+meta:
+  name: Amazon Elastic Block Store (EBS)
+  search: EBS
+  config_pattern: "Amazon Elastic Block Store \\(EBS\\)"
+  category: storage
+  description: |
+    Block storage volumes attached to EC2 instances. Use this for an EBS
+    line item that isn't tied to an EC2 estimate; for in-EC2 EBS use the
+    `ebs` sub-object on the ec2 datasheet.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: volume_count
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    description: Number of identical volumes.
+    ui:
+      kind: number
+      locator: { role: textbox, name_prefix: "Number of volumes" }
+
+  - id: hours_per_month
+    type: number
+    default: 730
+    constraints: { min: 0, max: 744 }
+    description: Average duration each volume is attached per month.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Average duration of volume Value" }
+
+  - id: volume_type
+    type: enum
+    default: gp3
+    description: EBS volume type.
+    options:
+      - { value: gp3, label: "General Purpose SSD (gp3)", default: true }
+      - { value: gp2, label: "General Purpose SSD (gp2)" }
+      - { value: io1, label: "Provisioned IOPS SSD (io1)" }
+      - { value: io2, label: "Provisioned IOPS SSD (io2)" }
+      - { value: st1, label: "Throughput Optimized HDD (st 1)" }
+      - { value: sc1, label: "Cold HDD (sc1)" }
+      - { value: magnetic, label: "Magnetic (previous generation)" }
+    ui:
+      kind: dropdown
+      locator: { role: button, name_prefix: "Storage for each EC2 instance" }
+
+  - id: volume_size_gb
+    type: number
+    default: 100
+    constraints: { min: 1 }
+    description: Storage amount per volume (GB).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Storage amount per volume Value" }
+
+  - id: iops
+    type: integer
+    optional: true
+    visible_when: "volume_type == 'gp3' || volume_type == 'io1' || volume_type == 'io2'"
+    constraints: { min: 100 }
+    description: Provisioned IOPS per volume (gp3/io1/io2 only).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "IOPS" }
+
+  - id: throughput_mbps
+    type: integer
+    optional: true
+    visible_when: "volume_type == 'gp3'"
+    constraints: { min: 125 }
+    description: Provisioned throughput in MBps (gp3 only).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Throughput Value" }
+
+flow:
+  - apply: volume_count
+  - apply: hours_per_month
+    when: "hours_per_month != 730"
+  - apply: volume_type
+    when: "volume_type != 'gp3'"
+  - apply: volume_size_gb
+  - apply: iops
+    when: "iops != null && (volume_type == 'gp3' || volume_type == 'io1' || volume_type == 'io2')"
+  - apply: throughput_mbps
+    when: "throughput_mbps != null && volume_type == 'gp3'"
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: textbox, name: { regex: "Number of volumes" }, label: "number of volumes textbox" }
+  - { role: spinbutton, name: { regex: "Average duration of volume Value" }, label: "duration spinbutton" }
+  - { role: spinbutton, name: { regex: "Storage amount per volume Value" }, label: "storage per volume spinbutton" }
+  - { role: button, name: { regex: "^Storage for each EC2 instance" }, label: "volume type dropdown" }

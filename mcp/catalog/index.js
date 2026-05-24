@@ -55,16 +55,45 @@ async function dynamicImport(absPath) {
   return import(url);
 }
 
+// Resolve a service folder to either its index.js or its <leaf>.yaml
+// datasheet, importing whichever exists. YAML-driven services have no
+// wrapper module; we build the handler module in memory via datasheet.js.
+async function loadHandlerForFolder(folderAbs) {
+  const { resolveHandlerSource, loadHandlerFromYaml } = await dynamicImport(
+    join(REPO, "runner", "lib", "datasheet.js"),
+  );
+  const src = resolveHandlerSource(folderAbs);
+  if (!src) {
+    throw new Error(
+      `no index.js or <leaf>.yaml found in ${folderAbs}`,
+    );
+  }
+  if (src.kind === "js") {
+    return { mod: await dynamicImport(src.path), handlerPath: src.path };
+  }
+  return { mod: loadHandlerFromYaml(src.path), handlerPath: src.path };
+}
+
 async function loadEmbedded() {
   const manifest = JSON.parse(readFileSync(EMBEDDED_CATALOG_FILE, "utf8"));
+  const { SERVICE_PATHS } = await dynamicImport(
+    join(EMBEDDED_HANDLERS_DIR, "registry.js"),
+  );
   const entries = [];
   for (const [name, meta] of Object.entries(manifest.services)) {
     const schemaPath = join(EMBEDDED_SCHEMAS_DIR, meta.schema_ref);
-    const handlerPath = join(EMBEDDED_HANDLERS_DIR, `${name}.js`);
-    const [schemaMod, handlerMod] = await Promise.all([
+    const sub = SERVICE_PATHS[name];
+    if (!sub) {
+      console.error(`[catalog] no registry entry for '${name}' — add to runner/lib/services/registry.js`);
+      continue;
+    }
+    const folderAbs = join(EMBEDDED_HANDLERS_DIR, sub);
+    const [schemaMod, loaded] = await Promise.all([
       dynamicImport(schemaPath),
-      dynamicImport(handlerPath),
+      loadHandlerForFolder(folderAbs),
     ]);
+    const handlerMod = loaded.mod;
+    const handlerPath = loaded.handlerPath;
     // handler_version is sourced from the handler module's `version` export,
     // so it lives next to the code that determines it. catalog.json's
     // handler_version (if present) is a legacy fallback.

@@ -26,6 +26,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkLocators } from "./lib/health.js";
 import { getSearchName, getConfigPattern } from "./lib/calculator.js";
+import {
+  importHandlerModule,
+  resolveHandlerSource,
+} from "./lib/datasheet.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SERVICES_DIR = join(HERE, "lib", "services");
@@ -39,16 +43,23 @@ function emit(event) {
 }
 
 async function listServices() {
-  const files = await readdir(SERVICES_DIR);
-  return files
-    .filter((f) => f.endsWith(".js"))
-    .map((f) => f.replace(/\.js$/, ""))
-    .sort();
+  const { listServiceIds } = await import(
+    join(SERVICES_DIR, "registry.js")
+  );
+  return listServiceIds();
 }
 
 async function loadHandler(service) {
-  const mod = await import(join(SERVICES_DIR, `${service}.js`));
-  return mod;
+  const { pathFor } = await import(join(SERVICES_DIR, "registry.js"));
+  const sub = pathFor(service);
+  if (!sub) throw new Error(`registry: no entry for '${service}'`);
+  const src = resolveHandlerSource(join(SERVICES_DIR, sub));
+  if (!src) {
+    throw new Error(
+      `no index.js or <leaf>.yaml found for '${service}' in ${join(SERVICES_DIR, sub)}`,
+    );
+  }
+  return importHandlerModule(src.path);
 }
 
 async function hideChatbot(page) {

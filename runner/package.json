@@ -11,9 +11,12 @@
   },
   "scripts": {
     "start": "node run.js",
-    "health": "node health.js"
+    "health": "node health.js",
+    "gen:zod": "node tools/gen-zod.mjs",
+    "check:catalog": "node tools/check-catalog.mjs"
   },
   "dependencies": {
-    "playwright": "^1.49.0"
+    "playwright": "^1.49.0",
+    "yaml": "^2.9.0"
   }
 }

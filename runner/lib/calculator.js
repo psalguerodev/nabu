@@ -317,7 +317,7 @@ function extractCosts(html) {
 
 export function getSearchName(service) {
   const map = {
-    ec2: "EC2", s3: "S3", lambda: "Lambda",
+    ec2: "EC2", s3: "S3", lambda: "Lambda", ebs: "EBS",
     "step-functions": "Step Functions", dynamodb: "DynamoDB",
     "api-gateway": "API Gateway", cloudfront: "CloudFront",
     vpn: "VPN", cognito: "Cognito", waf: "WAF",
@@ -326,6 +326,12 @@ export function getSearchName(service) {
     "systems-manager": "Systems Manager",
     bedrock: "Bedrock", "bedrock-agentcore": "Bedrock AgentCore",
     "sagemaker-async": "SageMaker",
+    "sagemaker-studio-notebooks": "SageMaker",
+    "sagemaker-on-demand-notebooks": "SageMaker",
+    "sagemaker-training": "SageMaker",
+    "sagemaker-real-time-inference": "SageMaker",
+    "sagemaker-serverless-inference": "SageMaker",
+    "sagemaker-batch-transform": "SageMaker",
     textract: "Textract",
     cloudtrail: "CloudTrail",
     "s3-vectors": "S3",
@@ -341,6 +347,7 @@ export function getSearchName(service) {
 export function getConfigPattern(service) {
   const map = {
     ec2: "Amazon EC2", s3: "Amazon Simple Storage Service",
+    ebs: "Amazon Elastic Block Store \\(EBS\\)",
     lambda: "AWS Lambda", "step-functions": "AWS Step Functions",
     dynamodb: "Amazon DynamoDB", "api-gateway": "Amazon API Gateway",
     cloudfront: "Amazon CloudFront", vpn: "Amazon Virtual Private Cloud",
@@ -350,6 +357,12 @@ export function getConfigPattern(service) {
     "systems-manager": "AWS Systems Manager",
     bedrock: "Amazon Bedrock", "bedrock-agentcore": "Amazon Bedrock AgentCore",
     "sagemaker-async": "Amazon SageMaker(?! Ground)",
+    "sagemaker-studio-notebooks": "Amazon SageMaker(?! Ground)",
+    "sagemaker-on-demand-notebooks": "Amazon SageMaker(?! Ground)",
+    "sagemaker-training": "Amazon SageMaker(?! Ground)",
+    "sagemaker-real-time-inference": "Amazon SageMaker(?! Ground)",
+    "sagemaker-serverless-inference": "Amazon SageMaker(?! Ground)",
+    "sagemaker-batch-transform": "Amazon SageMaker(?! Ground)",
     textract: "Amazon Textract",
     cloudtrail: "AWS CloudTrail",
     "s3-vectors": "Amazon Simple Storage Service",

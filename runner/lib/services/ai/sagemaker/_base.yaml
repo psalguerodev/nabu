@@ -1,0 +1,53 @@
+# =============================================================================
+# SageMaker family — shared base
+# =============================================================================
+# Used via `extends: _base.yaml` from each sub-service file (async, training,
+# real-time-inference, etc.). The base defines:
+#
+#   - the shared region field
+#   - a `flow_prelude` that toggles the wizard into the desired sub-feature
+#     state via the data-id checkbox grid
+#   - the standard "click Tab to commit last field" tail
+#
+# Each child must declare:
+#
+#   activates: { sageMaker<SubFeature>: true|false, ... }
+#     Tells the prelude which sub-feature(s) to toggle on/off.
+#
+#   ready_text: "<substring>"
+#     Text the prelude waits for after toggling, to confirm the section
+#     rendered.
+# =============================================================================
+
+service: _sagemaker_base
+version: 0.0.0
+
+meta:
+  name: Amazon SageMaker
+  search: SageMaker
+  config_pattern: "Amazon SageMaker(?! Ground)"
+  category: ai
+  description: |
+    Family base — never used directly. SageMaker AI's main config form
+    exposes ~15 sub-feature checkboxes; each sub-service activates one and
+    deactivates the two default-on notebook checkboxes.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+flow_prelude:
+  - action: toggle_checkbox_data_id
+    targets_field: activates
+
+  - action: wait_for_text
+    pattern_field: ready_text
+    timeout_ms: 10000
+
+flow_postlude:
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 700 }
