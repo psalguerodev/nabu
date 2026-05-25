@@ -1,6 +1,6 @@
 [package]
 name = "nabu"
-version = "0.1.0"
+version = "0.1.1"
 description = "Nabu — desktop app for AWS calculator estimate automation"
 authors = ["ARKHO Labs"]
 edition = "2021"

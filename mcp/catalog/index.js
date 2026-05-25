@@ -179,16 +179,33 @@ async function loadRemote(dir) {
         );
         continue;
       }
-      const mod = await dynamicImport(schemaPath);
+      // Prefer the statically-bundled schema. Bun-compiled binaries
+      // restrict dynamicImport to modules included at build time, so an
+      // overlaid <service>.js downloaded into the remote dir would fail
+      // to import silently — and silently dropping the overlay is why
+      // the user-facing Updates tab kept showing "embedded" after a
+      // successful install. For services already in the embedded
+      // catalog (which covers every catalog-vX.Y release that adjusts
+      // an existing service rather than adding a new one), reuse the
+      // embedded zod schema; the YAML payload — which IS what changed
+      // — still loads from disk.
+      let mod = EMBEDDED_SCHEMAS[name];
+      if (!mod) {
+        try {
+          mod = await dynamicImport(schemaPath);
+        } catch (importErr) {
+          console.error(
+            `[catalog] remote service '${name}': schema import failed in this runtime (${importErr.message}); ` +
+              `dropping. Add the service to the embedded schemas-bundle and ship a new app build to enable overlay.`,
+          );
+          continue;
+        }
+      }
       // YAML overlays defer compilation to the embedded interpreter at
       // load time (the bundle never ships datasheet.js / declarative.js).
-      // We import once here just to validate the YAML parses; the cached
-      // module is dropped because the runner re-imports per-job.
+      // Validate once here that the YAML parses.
       if (handlerPath.endsWith(".yaml") || handlerPath.endsWith(".yml")) {
-        const { loadHandlerFromYaml } = await dynamicImport(
-          join(REPO, "runner", "lib", "datasheet.js"),
-        );
-        loadHandlerFromYaml(handlerPath);
+        datasheetModule.loadHandlerFromYaml(handlerPath);
       }
       entries.push([
         name,
