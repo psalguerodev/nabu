@@ -67,7 +67,10 @@ fields:
     description: Data storage size in GB.
     ui:
       kind: number
-      locator: { role: spinbutton, name: { regex: "Data storage size Value" } }
+      # `first: true` because when capacity_mode switches the wizard
+      # transiently renders both Provisioned and On-Demand sections,
+      # each with its own "Data storage size Value" spinbutton.
+      locator: { role: spinbutton, name: { regex: "Data storage size Value" }, first: true }
 
   - id: avg_item_size_kb
     type: number
@@ -76,7 +79,7 @@ fields:
     description: Average item size in KB. Skipped when equal to the wizard default (1).
     ui:
       kind: number
-      locator: { role: spinbutton, name: { regex: "Average item size" } }
+      locator: { role: spinbutton, name: { regex: "Average item size" }, first: true }
 
   # ---- Provisioned-only -------------------------------------------------
   - id: baseline_write_per_sec
@@ -135,17 +138,23 @@ flow:
   # wizard's default (provisioned-on, on-demand-off). check_checkbox is
   # idempotent so order doesn't matter, but we uncheck provisioned first
   # so the wizard never sees both selected simultaneously.
+  # `force: true` because CloudScape's `<span data-id="amazonDynamoDb..."
+  # class="...prevented">` overlay swallows the role-based click. The
+  # native input still receives the synthetic click event via Playwright's
+  # input-dispatch path. See D15.
   - when: "capacity_mode == 'on_demand'"
     action: check_checkbox
     role: checkbox
     name: "DynamoDB provisioned capacity"
     value: false
+    force: true
 
   - when: "capacity_mode == 'on_demand'"
     action: check_checkbox
     role: checkbox
     name: "DynamoDB on-demand capacity"
     value: true
+    force: true
 
   - { action: wait_ms, ms: 800 }
 
