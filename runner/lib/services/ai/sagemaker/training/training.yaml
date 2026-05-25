@@ -16,6 +16,7 @@ ready_text: "Number of training jobs"
 fields:
   - id: jobs_per_month
     type: integer
+    description: Number of batch jobs run per month.
     default: 1
     constraints: { min: 1 }
     ui:
@@ -24,6 +25,7 @@ fields:
 
   - id: instances_per_job
     type: integer
+    description: Number of instances spun up per batch job.
     default: 1
     constraints: { min: 1 }
     ui:
@@ -40,6 +42,7 @@ fields:
 
   - id: instance_type
     type: string
+    description: Exact SageMaker instance type (ml.* identifier).
     default: ml.m5.large
     ui:
       kind: combobox
@@ -47,6 +50,7 @@ fields:
 
   - id: storage_amount_gb
     type: number
+    description: EBS storage attached to each endpoint instance (GB).
     default: 50
     constraints: { min: 0 }
     ui:

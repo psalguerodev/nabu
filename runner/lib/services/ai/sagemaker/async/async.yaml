@@ -16,6 +16,7 @@ ready_text: "Asynchronous Inference Instances"
 fields:
   - id: models_deployed
     type: integer
+    description: Number of unique models hosted by the endpoint group.
     default: 1
     constraints: { min: 1 }
     ui:
@@ -24,6 +25,7 @@ fields:
 
   - id: models_per_endpoint
     type: integer
+    description: Number of model variants packed into a single endpoint.
     default: 1
     constraints: { min: 1 }
     ui:
@@ -32,6 +34,7 @@ fields:
 
   - id: instances_per_endpoint
     type: integer
+    description: Number of provisioned instances per endpoint.
     default: 1
     constraints: { min: 1 }
     ui:
@@ -40,6 +43,7 @@ fields:
 
   - id: hours_per_day
     type: number
+    description: Hours per day the endpoint is active.
     default: 12
     constraints: { min: 0, max: 24 }
     ui:
@@ -48,6 +52,7 @@ fields:
 
   - id: days_per_month
     type: number
+    description: Days per month the endpoint is active.
     default: 30
     constraints: { min: 0, max: 31 }
     ui:
@@ -56,6 +61,7 @@ fields:
 
   - id: instance_type
     type: string
+    description: Exact SageMaker instance type (ml.* identifier).
     default: ml.g5.2xlarge
     ui:
       kind: combobox
@@ -63,6 +69,7 @@ fields:
 
   - id: storage_amount_gb
     type: number
+    description: EBS storage attached to each endpoint instance (GB).
     default: 100
     constraints: { min: 0 }
     ui:
@@ -71,6 +78,7 @@ fields:
 
   - id: data_in_gb
     type: number
+    description: Inbound data processed per month (GB). Skipped when 0.
     optional: true
     constraints: { min: 0 }
     ui:
@@ -79,6 +87,7 @@ fields:
 
   - id: data_out_gb
     type: number
+    description: Outbound data processed per month (GB). Skipped when 0.
     optional: true
     constraints: { min: 0 }
     ui:

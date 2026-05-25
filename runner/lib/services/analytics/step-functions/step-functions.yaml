@@ -2,14 +2,27 @@
 # AWS Step Functions — service datasheet
 # =============================================================================
 # Serverless workflow orchestration. Pricing varies by workflow type:
-# Standard (per state transition) vs Express (per request + duration).
-# This datasheet only models the Standard Workflows surface that the v0.1
-# JS handler covered — workflow requests, state transitions per workflow,
-# and an opt-in "Express Workflows" enable toggle.
+# Standard (per state transition) vs Express (per request + duration + memory).
+#
+# v0.2.0 — Standard Workflows only. `express` boolean toggled the checkbox
+# but no Express-side fields existed yet.
+#
+# v0.3.0 — Adds full Express Workflows surface (gated by `express == true`):
+#   • express_workflow_requests + unit dropdown (defaults to "per month")
+#   • express_duration_ms (textbox, milliseconds only on the wizard)
+#   • express_memory_mb + unit dropdown (defaults to MB)
+#
+# Wizard reality note:
+#   When the Express section is enabled, the "Workflow requests Value" and
+#   "Workflow requests Unit per month" labels appear TWICE on the same form
+#   (Standard nth=0, Express nth=1). The existing Standard `workflow_requests`
+#   field locator stays as-is — Playwright's role+name match resolves to the
+#   first occurrence by default (nth=0). Express fills are driven by explicit
+#   nth=1 steps below to disambiguate.
 # =============================================================================
 
 service: step-functions
-version: 0.2.0
+version: 0.3.0
 
 meta:
   name: AWS Step Functions
@@ -19,7 +32,8 @@ meta:
   description: |
     Serverless workflow orchestration. The default form shows Standard
     Workflows; setting `express: true` toggles the "Step Functions -
-    Express Workflows" checkbox to opt in to the Express section.
+    Express Workflows" checkbox to opt in to the Express section and
+    unlocks express_* fields (requests, duration ms, memory).
 
 fields:
   - id: region
@@ -37,33 +51,122 @@ fields:
       kind: checkbox
       locator: { role: checkbox, name: "Step Functions - Express Workflows" }
 
+  # ---- Standard Workflows ------------------------------------------------
   - id: workflow_requests
     type: integer
     default: 0
     constraints: { min: 0 }
-    description: Number of workflow executions.
+    description: Standard Workflows — number of workflow executions.
     ui:
       kind: number
-      locator: { role: spinbutton, name_prefix: "Workflow requests Value" }
+      # When Express is also enabled the wizard renders TWO "Workflow
+      # requests Value" spinbuttons (Standard at nth 0, Express at nth 1).
+      # first: true keeps the Standard locator strict-mode-safe.
+      locator: { role: spinbutton, name_prefix: "Workflow requests Value", first: true }
 
   - id: transitions_per_workflow
     type: integer
     default: 0
     constraints: { min: 0 }
-    description: Average number of state transitions per workflow execution.
+    description: Standard Workflows — average number of state transitions per workflow execution.
     ui:
       kind: text
       locator: { role: textbox, name_prefix: "State transitions per workflow" }
 
+  # ---- Express Workflows (gated by `express == true`) -------------------
+  - id: express_workflow_requests
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "express == true"
+    description: Express Workflows — number of workflow executions per period.
+    # No ui: — shares "Workflow requests Value" label with Standard; driven via nth=1 below.
+
+  - id: express_workflow_requests_unit
+    type: enum
+    default: per_month
+    visible_when: "express == true"
+    description: Unit for express_workflow_requests. Wizard default is "per month".
+    options:
+      - { value: per_second, label: "per second" }
+      - { value: per_minute, label: "per minute" }
+      - { value: per_hour,   label: "per hour" }
+      - { value: per_day,    label: "per day" }
+      - { value: per_month,  label: "per month", default: true }
+    # No ui: — shares "Workflow requests Unit" label with Standard; driven via nth=1 below.
+
+  - id: express_duration_ms
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "express == true"
+    description: Express Workflows — average duration of each workflow execution in milliseconds.
+    ui:
+      kind: text
+      locator: { role: textbox, name_prefix: "Duration of each workflow Please enter duration in Milliseconds" }
+
+  - id: express_memory_mb
+    type: integer
+    default: 64
+    constraints: { min: 64, max: 10240 }
+    visible_when: "express == true"
+    description: Express Workflows — memory consumed by each workflow (MB). Wizard default is 64 MB.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name_prefix: "Memory consumed by each workflow Value" }
+
+  - id: express_memory_unit
+    type: enum
+    default: MB
+    visible_when: "express == true"
+    description: Unit for express_memory_mb. Wizard default is MB.
+    options:
+      - { value: MB, label: "MB", default: true }
+      - { value: GB, label: "GB" }
+    ui:
+      kind: dropdown
+      locator: { role: button, name_prefix: "Memory consumed by each workflow Unit" }
+
 flow:
+  # ---- Express opt-in (must come before any express fills) --------------
   - apply: express
     when: "express == true"
 
+  # ---- Standard Workflows -----------------------------------------------
   - apply: workflow_requests
     when: "workflow_requests > 0"
 
   - apply: transitions_per_workflow
     when: "transitions_per_workflow > 0"
+
+  # ---- Express Workflows ------------------------------------------------
+  # Express "Workflow requests Value" shares its label with the Standard
+  # field; Standard is nth=0, Express is nth=1.
+  - when: "express == true && express_workflow_requests > 0"
+    action: fill
+    role: spinbutton
+    name_prefix: "Workflow requests Value"
+    nth: 1
+    value: "{express_workflow_requests}"
+
+  - when: "express == true && express_workflow_requests > 0 && express_workflow_requests_unit != 'per_month'"
+    action: select_dropdown
+    trigger:
+      role: button
+      name_prefix: "Workflow requests Unit"
+      nth: 1
+    option: "{express_workflow_requests_unit}"
+    open_wait_ms: 500
+    settle_ms: 300
+
+  - apply: express_duration_ms
+    when: "express == true && express_duration_ms > 0"
+
+  - apply: express_memory_mb
+    when: "express == true && express_memory_mb > 0"
+
+  - apply: express_memory_unit
+    when: "express == true && express_memory_mb > 0 && express_memory_unit != 'MB'"
 
   - { action: press_key, key: "Tab" }
   - { action: wait_ms, ms: 500 }

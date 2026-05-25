@@ -5,15 +5,15 @@ import { z } from "zod";
 export const zodSchema = z
   .object({
     region: z.string().min(1).default("us-east-1").describe("AWS region code."),
-    models_deployed: z.number().int().min(1).default(1),
-    models_per_endpoint: z.number().int().min(1).default(1),
-    instances_per_endpoint: z.number().int().min(1).default(1),
-    hours_per_day: z.number().min(0).max(24).default(12),
-    days_per_month: z.number().min(0).max(31).default(30),
-    instance_type: z.string().min(1).default("ml.g5.2xlarge"),
-    storage_amount_gb: z.number().min(0).default(100),
-    data_in_gb: z.number().min(0).optional(),
-    data_out_gb: z.number().min(0).optional()
+    models_deployed: z.number().int().min(1).default(1).describe("Number of unique models hosted by the endpoint group."),
+    models_per_endpoint: z.number().int().min(1).default(1).describe("Number of model variants packed into a single endpoint."),
+    instances_per_endpoint: z.number().int().min(1).default(1).describe("Number of provisioned instances per endpoint."),
+    hours_per_day: z.number().min(0).max(24).default(12).describe("Hours per day the endpoint is active."),
+    days_per_month: z.number().min(0).max(31).default(30).describe("Days per month the endpoint is active."),
+    instance_type: z.string().min(1).default("ml.g5.2xlarge").describe("Exact SageMaker instance type (ml.* identifier)."),
+    storage_amount_gb: z.number().min(0).default(100).describe("EBS storage attached to each endpoint instance (GB)."),
+    data_in_gb: z.number().min(0).optional().describe("Inbound data processed per month (GB). Skipped when 0."),
+    data_out_gb: z.number().min(0).optional().describe("Outbound data processed per month (GB). Skipped when 0.")
   })
   .meta({ id: "sagemaker-async" });
 

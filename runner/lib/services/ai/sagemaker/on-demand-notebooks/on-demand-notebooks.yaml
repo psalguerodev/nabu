@@ -15,6 +15,7 @@ ready_text: "On-Demand Notebook hour"
 fields:
   - id: data_scientists
     type: integer
+    description: Number of data scientists using the notebook service.
     default: 1
     constraints: { min: 1 }
     ui:
@@ -31,6 +32,7 @@ fields:
 
   - id: hours_per_day
     type: number
+    description: Hours per day the endpoint is active.
     default: 8
     constraints: { min: 0, max: 24 }
     ui:
@@ -39,6 +41,7 @@ fields:
 
   - id: days_per_month
     type: number
+    description: Days per month the endpoint is active.
     default: 22
     constraints: { min: 0, max: 31 }
     ui:
@@ -47,6 +50,7 @@ fields:
 
   - id: instance_type
     type: string
+    description: Exact SageMaker instance type (ml.* identifier).
     default: ml.t3.medium
     ui:
       kind: combobox
@@ -54,6 +58,7 @@ fields:
 
   - id: storage_amount_gb
     type: number
+    description: EBS storage attached to each endpoint instance (GB).
     default: 50
     constraints: { min: 0 }
     ui:

@@ -19,7 +19,7 @@
 # =============================================================================
 
 service: ses
-version: 0.2.0
+version: 0.3.0
 
 meta:
   name: Amazon Simple Email Service (SES)
@@ -138,6 +138,87 @@ fields:
       kind: text
       locator: { role: textbox, name: { regex: "Number of dedicated IP\\(standard\\) addresses Enter amount" } }
 
+  # ---- v0.3.0: Open Ingress Endpoints ----------------------------------
+  - id: open_ingress_endpoints
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of Open Ingress endpoints (per month). Wizard only exposes "per month" unit.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Number of Open Ingress Endpoint\\(s\\) Value" } }
+
+  # ---- v0.3.0: Email Processing (Mail Manager) -------------------------
+  - id: mail_manager_emails
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of emails processed by Mail Manager. Wizard default unit is per day; we always set the unit explicitly.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Number of Emails processed by Mail Manager Value" } }
+
+  - id: mail_manager_emails_unit
+    type: enum
+    default: per_month
+    description: Unit for mail_manager_emails (wizard default is per day — we override to per_month for caller ergonomics).
+    options:
+      - { value: per_day,   label: "per day" }
+      - { value: per_week,  label: "per week" }
+      - { value: per_month, label: "per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Number of Emails processed by Mail Manager" } }
+
+  - id: mail_manager_avg_size_kb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Average size of emails processed by Mail Manager (KB by default; flip the unit to MB explicitly via mail_manager_avg_size_unit if you pass MB-scale values).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Average size of email processed by Mail Manager Value" } }
+
+  - id: mail_manager_avg_size_unit
+    type: enum
+    default: kb
+    description: Unit for mail_manager_avg_size_kb.
+    options:
+      - { value: kb, label: "KB", default: true }
+      - { value: mb, label: "MB" }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Average size of email processed by Mail Manager" } }
+
+  # ---- v0.3.0: Virtual Deliverability Manager (Disable/Enable) ----------
+  - id: vdm_enabled
+    type: boolean
+    default: false
+    description: |
+      Toggle the Virtual Deliverability Manager (VDM). Renders as a
+      CloudScape select button labelled "Virtual Delivery Manager" with
+      "Disable" / "Enable" options. Driven by a raw select_dropdown step
+      mapping true->"Enable", false->"Disable".
+
+  # ---- v0.3.0: Archive ---------------------------------------------------
+  - id: archive_inserted_indexed_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: GB of email content inserted and indexed in the Archive per month.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Gigabytes Inserted & Indexed Value" } }
+
+  - id: archive_already_stored_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: GB of email content already stored in the Archive (carryover).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "Gigabytes Already Stored Value" } }
+
 flow:
   - apply: emails_sent_from_client
     when: "emails_sent_from_client > 0"
@@ -161,6 +242,34 @@ flow:
 
   - apply: dedicated_ips_standard_count
     when: "dedicated_ips_standard_count > 0"
+
+  # ----- v0.3.0 sections -----
+  - apply: open_ingress_endpoints
+    when: "open_ingress_endpoints > 0"
+
+  - apply: mail_manager_emails
+    when: "mail_manager_emails > 0"
+  - apply: mail_manager_emails_unit
+    when: "mail_manager_emails > 0"
+
+  - apply: mail_manager_avg_size_kb
+    when: "mail_manager_avg_size_kb > 0"
+  - apply: mail_manager_avg_size_unit
+    when: "mail_manager_avg_size_kb > 0"
+
+  # VDM toggle: select "Enable" only when caller opts in. Wizard default is
+  # "Disable" so we skip the click in the common case.
+  - when: "vdm_enabled == true"
+    action: select_dropdown
+    trigger: { role: button, name: { regex: "^Virtual Delivery Manager" } }
+    option: "Enable"
+    open_wait_ms: 600
+    settle_ms: 400
+
+  - apply: archive_inserted_indexed_gb
+    when: "archive_inserted_indexed_gb > 0"
+  - apply: archive_already_stored_gb
+    when: "archive_already_stored_gb > 0"
 
   - { action: press_key, key: "Tab" }
   - { action: wait_ms, ms: 500 }
