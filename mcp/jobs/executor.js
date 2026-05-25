@@ -8,15 +8,22 @@ const STUB_DURATION_MS = Number(process.env.NABU_STUB_DURATION_MS ?? 5000);
 const EXECUTOR_MODE = process.env.NABU_EXECUTOR ?? "real";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-// In packaged mode Tauri ships a Bun-compiled `nabu-runner` binary; the
-// path is passed via NABU_RUNNER_PATH and we exec it directly (no node).
-// In dev we keep spawning the runner JS via node so hot edits work.
+// Runner invocation has three shapes:
+//   - dev (default):   NABU_RUNNER_PATH unset → spawn `node runner/run.js`
+//   - runtime + script (packaged): NABU_RUNNER_PATH points to bun
+//     (or node) AND NABU_RUNNER_SCRIPT points to run.js. We spawn
+//     `<runtime> <script>` with the runtime as argv[0]. Used by the
+//     Tauri bundle where bun + runner/run.js ship as resources.
+//   - single binary:   NABU_RUNNER_PATH points to a compiled runner
+//     binary (no .js extension), no script. We spawn it directly.
 const RUNNER_PATH = process.env.NABU_RUNNER_PATH
   ? process.env.NABU_RUNNER_PATH
   : join(HERE, "..", "..", "runner", "run.js");
-const RUNNER_IS_BINARY = process.env.NABU_RUNNER_PATH
-  ? !RUNNER_PATH.endsWith(".js") && !RUNNER_PATH.endsWith(".mjs")
-  : false;
+const RUNNER_SCRIPT = process.env.NABU_RUNNER_SCRIPT || null;
+const RUNNER_CWD = process.env.NABU_RUNNER_CWD || null;
+const RUNNER_IS_BINARY = !!process.env.NABU_RUNNER_PATH
+  && !RUNNER_PATH.endsWith(".js")
+  && !RUNNER_PATH.endsWith(".mjs");
 
 export function run(jobId) {
   if (EXECUTOR_MODE === "stub") return runStub(jobId);
@@ -62,11 +69,19 @@ export function runReal(jobId) {
   setStatus(jobId, "running");
   addLog(jobId, "info", `spawning runner: ${RUNNER_PATH}`);
 
-  const child = RUNNER_IS_BINARY
-    ? spawn(RUNNER_PATH, [], { stdio: ["pipe", "pipe", "pipe"] })
-    : spawn(process.execPath, [RUNNER_PATH], {
-        stdio: ["pipe", "pipe", "pipe"],
-      });
+  const spawnOpts = { stdio: ["pipe", "pipe", "pipe"] };
+  if (RUNNER_CWD) spawnOpts.cwd = RUNNER_CWD;
+  let child;
+  if (RUNNER_IS_BINARY && RUNNER_SCRIPT) {
+    // bun + run.js (or node + run.js) — packaged Tauri layout.
+    child = spawn(RUNNER_PATH, [RUNNER_SCRIPT], spawnOpts);
+  } else if (RUNNER_IS_BINARY) {
+    // single compiled runner binary
+    child = spawn(RUNNER_PATH, [], spawnOpts);
+  } else {
+    // dev: node runner/run.js
+    child = spawn(process.execPath, [RUNNER_PATH], spawnOpts);
+  }
 
   const rawServices = job.params?.services
     ? job.params.services

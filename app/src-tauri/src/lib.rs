@@ -20,16 +20,68 @@ struct McpProcess(Mutex<Option<Child>>);
 struct McpSpawnPaths {
     db_path: PathBuf,
     remote_dir: PathBuf,
+    bundle: Option<BundleLayout>,
 }
 
-fn spawn_mcp(db_path: &PathBuf, remote_dir: &PathBuf) -> std::io::Result<Child> {
-    Command::new("node")
-        .args([MCP_SERVER_PATH, "--http", &format!("--port={MCP_PORT}")])
-        .env("NABU_DB_PATH", db_path)
-        .env("NABU_REMOTE_CATALOG_DIR", remote_dir)
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn()
+// Resolved paths inside the Tauri bundle's resource dir. Populated only
+// in release builds where scripts/prepare-resources.mjs staged them.
+#[derive(Clone)]
+struct BundleLayout {
+    mcp_binary: PathBuf,      // resources/nabu-mcp[.exe]
+    bun_binary: PathBuf,      // resources/bun[.exe]
+    embedded_dir: PathBuf,    // resources/embedded
+    runner_script: PathBuf,   // resources/runner-runtime/run.js
+    runner_cwd: PathBuf,      // resources/runner-runtime/
+}
+
+fn detect_bundle(resource_dir: Option<&PathBuf>) -> Option<BundleLayout> {
+    let dir = resource_dir?;
+    let exe_suffix = if cfg!(windows) { ".exe" } else { "" };
+    let mcp = dir.join(format!("nabu-mcp{exe_suffix}"));
+    let bun = dir.join(format!("bun{exe_suffix}"));
+    let runner = dir.join("runner-runtime").join("run.js");
+    let embedded = dir.join("embedded");
+    if mcp.exists() && bun.exists() && runner.exists() && embedded.exists() {
+        Some(BundleLayout {
+            mcp_binary: mcp,
+            bun_binary: bun,
+            embedded_dir: embedded,
+            runner_cwd: dir.join("runner-runtime"),
+            runner_script: runner,
+        })
+    } else {
+        None
+    }
+}
+
+fn spawn_mcp(db_path: &PathBuf, remote_dir: &PathBuf, bundle: Option<&BundleLayout>) -> std::io::Result<Child> {
+    match bundle {
+        Some(b) => {
+            // Packaged Tauri bundle: spawn the bun-compiled MCP binary
+            // and point it at the bun runtime + runner script for jobs.
+            Command::new(&b.mcp_binary)
+                .args(["--http", &format!("--port={MCP_PORT}")])
+                .env("NABU_DB_PATH", db_path)
+                .env("NABU_REMOTE_CATALOG_DIR", remote_dir)
+                .env("NABU_EMBEDDED_DIR", &b.embedded_dir)
+                .env("NABU_RUNNER_PATH", &b.bun_binary)
+                .env("NABU_RUNNER_SCRIPT", &b.runner_script)
+                .env("NABU_RUNNER_CWD", &b.runner_cwd)
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()
+        }
+        None => {
+            // Dev mode: spawn `node mcp/server.js` from the source tree.
+            Command::new("node")
+                .args([MCP_SERVER_PATH, "--http", &format!("--port={MCP_PORT}")])
+                .env("NABU_DB_PATH", db_path)
+                .env("NABU_REMOTE_CATALOG_DIR", remote_dir)
+                .stdout(Stdio::inherit())
+                .stderr(Stdio::inherit())
+                .spawn()
+        }
+    }
 }
 
 fn migrations() -> Vec<Migration> {
@@ -214,7 +266,7 @@ fn restart_mcp(
     }
     // Give the OS a moment to release the listening port before respawning.
     std::thread::sleep(std::time::Duration::from_millis(400));
-    let new_child = spawn_mcp(&paths.db_path, &paths.remote_dir)
+    let new_child = spawn_mcp(&paths.db_path, &paths.remote_dir, paths.bundle.as_ref())
         .map_err(|e| format!("failed to respawn MCP: {e}"))?;
     *proc.0.lock().unwrap() = Some(new_child);
     Ok(true)
@@ -245,12 +297,20 @@ pub fn run() {
             let remote_dir = data_dir.join(REMOTE_CATALOG_DIR);
             std::fs::create_dir_all(&remote_dir).ok();
 
-            let child = spawn_mcp(&db_path, &remote_dir)
-                .expect("failed to spawn Nabu MCP sidecar (is `node` on PATH?)");
+            // Tauri bundles ship the MCP binary + bun runtime + runner
+            // JS + embedded catalog under the resource dir. In dev these
+            // are missing and we fall back to spawning the source tree
+            // via the host `node`.
+            let resource_dir = app.path().resource_dir().ok();
+            let bundle = detect_bundle(resource_dir.as_ref());
+
+            let child = spawn_mcp(&db_path, &remote_dir, bundle.as_ref())
+                .expect("failed to spawn Nabu MCP sidecar");
             app.manage(McpProcess(Mutex::new(Some(child))));
             app.manage(McpSpawnPaths {
                 db_path: db_path.clone(),
                 remote_dir: remote_dir.clone(),
+                bundle,
             });
             Ok(())
         })

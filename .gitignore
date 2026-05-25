@@ -24,3 +24,4 @@ local-catalog/
 .idea/
 mcp/dist/bin/
 .bun-build
+app/src-tauri/resources/
