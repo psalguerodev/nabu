@@ -110,6 +110,12 @@ runner/lib/services/
 Interpreter primitives (see `runner/lib/declarative.js`):
 `fill`, `click`, `select_dropdown`, `check_checkbox`, `select_combobox`, `toggle_checkbox_data_id`, `search_and_pick_first_row`, `wait_ms`, `wait_for_text`, `scroll`, `press_key`, `fill_if_visible`, `expand_section`.
 
+Opt-in step flags introduced for CloudScape quirks (see D15, D16 in DECISIONS.md):
+- `force: true` on `check_checkbox` — bypasses Playwright's actionability gate so the click reaches the native input through the `<span class="...prevented">` wrapper CloudScape places on top.
+- `option_prefix: true` on `select_dropdown` — relaxes the option regex from `^X$` to `^X` so the doubled-label first option ("GlobalGlobal", "per monthper month") resolves correctly.
+
+For services whose configure wizard exposes lazy-rendered sub-sections, the `toggle_checkbox_data_id` primitive is the reliable path: it dispatches a native `input.click()` against the wrapper element keyed by its `data-id` attribute (e.g. `networkAddressTranslationNatGatewayVpc`), then verifies + retries up to 3 times.
+
 Composition primitives in `datasheet.js`:
 - `extends: ../_base.yaml` — family inheritance with merge (fields by id, flow stitched with parent prelude/postlude)
 - `$include: ../../_shared/<snippet>.yaml` — cross-service blocks
@@ -120,7 +126,7 @@ The Zod schema in `mcp/catalog/schemas/<service>.js` is **generated** from the Y
 
 ### Imperative JS handler (legacy, still supported)
 
-A `<folder>/index.js` exporting `{ id, version, healthLocators, healthPrerequisite?, adapter, handler }`. The `handler(page, config)` function drives Playwright directly. This is what every service started as; ~18 remain to be migrated to YAML.
+A `<folder>/index.js` exporting `{ id, version, healthLocators, healthPrerequisite?, adapter, handler }`. The `handler(page, config)` function drives Playwright directly. This is what every service started as. The migration is complete — at the time of writing every service in the catalog is YAML-driven, but the loader still accepts `index.js` so future services can opt out if their wizard truly resists the declarative form.
 
 ### Loader behavior
 
@@ -191,7 +197,7 @@ The catalog is the single source of truth for what Nabu can estimate. It is vers
     "ec2": {
       "handler_version": "0.1.0-0185d35b",
       "schema_ref": "schemas/ec2.js",
-      "handler_ref": "handlers/ec2.js",
+      "handler_ref": "handlers/ec2.yaml",
       "schema_sha256": "a92c47…",
       "handler_sha256": "0185d3…",
       "status": "schema-only",
@@ -205,6 +211,8 @@ The catalog is the single source of truth for what Nabu can estimate. It is vers
 
 1. **Embedded catalog** — `mcp/catalog/catalog.json` + the Zod schemas, shipped in the binary. Guarantees the app boots with a working set even offline.
 2. **Remote catalog** — pulled from a controlled endpoint (GitHub Releases today, S3/CloudFront tomorrow if needed). Overlays the embedded catalog: same-name entries override, new entries add.
+
+The published bundle ships the YAML datasheet directly (`handlers/<service>.yaml`) when the source service is declarative; legacy imperative services still ship as bundled JS (`handlers/<service>.js`). See D19 in DECISIONS.md for why the interpreter (`datasheet.js` + `declarative.js`) is never re-shipped — it stays embedded in the host app, and remote bundles depend on its stable primitive contract.
 
 ### Update flow
 

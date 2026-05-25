@@ -113,3 +113,43 @@ This file captures architectural decisions made in conversation, with the reason
 **Tradeoff:** Loaders need a registry lookup instead of guessing the path. Mitigated by `check-catalog` catching missing registry entries on every PR.
 
 **Tradeoff:** The Tauri side gains a small fs/JSON dependency for this single feature. Reads are gated by a Tauri command; the webview never gets raw fs access.
+
+## D15 — `force: true` flag on `check_checkbox`
+
+**Decision:** The interpreter's `check_checkbox` action accepts an optional `force: true` flag that bypasses Playwright's actionability gate.
+
+**Why:** CloudScape (AWS's design system) wraps native checkboxes in a `<span class="...prevented">` that intercepts pointer events. Playwright's default click refuses to fire when an obscuring element is on top, blocking every legitimate toggle. `force: true` dispatches the click directly to the native input, which still receives the right onChange events. First needed for Bedrock provider checkboxes and now used wherever the same pattern recurs (CloudScape sub-feature toggles across DynamoDB, S3, S3-Vectors).
+
+**Tradeoff:** Skips Playwright's accessibility/visibility checks for the affected step. Acceptable because we already know the target element exists (we selected it with a precise locator) and the obscuring span is a false positive.
+
+## D16 — `option_prefix: true` flag on `select_dropdown`
+
+**Decision:** `select_dropdown` accepts `option_prefix: true` to relax its option regex from `^X$` (anchored) to `^X` (starts-with).
+
+**Why:** CloudScape's first-rendered selected option text comes through duplicated by the a11y tree — e.g. `"GlobalGlobal"`, `"per monthper month"`. The default anchored regex never matched those, causing 30-second timeouts on `getByRole('option', { name: ... })`. The starts-with variant matches the real prefix without picking the wrong option (option labels in the same dropdown don't share prefixes in practice).
+
+**Tradeoff:** Two adjacent options sharing a prefix would resolve to the first one. Mitigated by opt-in (default stays anchored) and only enabling it on dropdowns we've verified.
+
+## D17 — Per-line `description` fill in the configure wizard
+
+**Decision:** `enqueue_estimate_job` accepts an optional `description` per service item; the runner fills the wizard's "Description - optional" textbox with it (falls back to the service id when omitted). Best-effort: any failure to fill is swallowed.
+
+**Why:** AWS estimates render that textbox as the Description column in the read-only share view. Without it, every line item shows "-" and a 30-service estimate becomes unreadable. The runner already had the locator wait at the top of every service; one extra fill costs nothing and makes shared estimates intelligible.
+
+**Tradeoff:** Some wizards (WAF, etc.) render extra "Description"-named textboxes deeper in the form — anchored with `.first()` to keep strict-mode safe.
+
+## D18 — Heuristic ETA in `enqueue_estimate_job` response
+
+**Decision:** The MCP returns `estimated_duration_sec` on every enqueue, computed from per-service p50 of recent successful jobs (last 20) plus a fixed browser-launch overhead. Services without history fall back to 12s each.
+
+**Why:** Multi-service jobs run 1–6 minutes and Claude callers benefit from knowing whether to poll every 5s or every 60s. The SQLite job store already had the timing data; a small helper makes it discoverable. Only exposed on enqueue (not `get_job_status`) to keep the status surface minimal.
+
+**Tradeoff:** P50 is jittery with low job counts. Heuristic baseline keeps it sane for cold services.
+
+## D19 — Publish bundles YAML datasheets, not pre-compiled handlers
+
+**Decision:** `mcp/tools/publish.js` ships either `<service>.js` (legacy imperative handler) or `<service>.yaml` (declarative datasheet, fully resolved via `flattenDatasheetToYaml` so `extends`/`$include` chains collapse into a single self-contained doc). `loadRemote` recognises both extensions; YAML overlays are evaluated at load time by the embedded interpreter (`datasheet.js` + `declarative.js`), which never ships in the bundle.
+
+**Why:** Bundling the interpreter would bloat every release and create a sync hazard (interpreter on disk vs interpreter in the bundle). Keeping interpretation embedded means the bundle is just data; the runtime decides how to drive Playwright. Bonus: a YAML overlay is a few KB instead of a 320 KB esbuilded handler.
+
+**Tradeoff:** Remote-overlaid YAML services depend on the host app's interpreter version. Breaking interpreter changes would orphan published bundles — mitigated by treating interpreter primitives (`fill`, `select_dropdown`, etc.) as a stable contract.
