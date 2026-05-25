@@ -306,11 +306,17 @@ async function dispatchAction(page, step, ctx) {
       await trigger.click();
       await page.waitForTimeout(step.open_wait_ms ?? 500);
       const optionName = interpolate(step.option, ctx);
-      const option = page
-        .getByRole("option", {
-          name: new RegExp(`^${escapeRegex(optionName)}$`, "i"),
-        })
-        .first();
+      // CloudScape sometimes renders the selected option's accessible name
+      // doubled (e.g. "GlobalGlobal", "per monthper month") because the
+      // label sits next to a hidden duplicate node. `option_prefix: true`
+      // opts the step into a starts-with match so the duplicated form still
+      // resolves. Default stays anchored to avoid silently picking the
+      // wrong option when one option is a prefix of another.
+      const escaped = escapeRegex(optionName);
+      const regex = step.option_prefix
+        ? new RegExp(`^${escaped}`, "i")
+        : new RegExp(`^${escaped}$`, "i");
+      const option = page.getByRole("option", { name: regex }).first();
       await option.click();
       await page.waitForTimeout(step.settle_ms ?? 300);
       return;

@@ -275,7 +275,10 @@ flow:
     value: true
     force: true
 
-  - { action: wait_ms, ms: 1500 }
+  # The provider grid re-renders the per-provider dropdowns/selects after
+  # toggle. 1500ms was not enough for the newly-enabled section's options
+  # to be selectable; bump to 3000ms.
+  - { action: wait_ms, ms: 3000 }
 
   # ----- Inference route ---------------------------------------------------
   # Trigger button text differs per provider section:
@@ -291,6 +294,7 @@ flow:
       name: { regex: "^Select (your|the) inference route", flags: "i" }
       first: true
     option: "{inference_route}"
+    option_prefix: true   # CloudScape renders the selected option doubled (e.g. "GlobalGlobal")
     open_wait_ms: 1000
     settle_ms: 500
 
@@ -302,6 +306,7 @@ flow:
       name: { regex: "^Select (your|the) inference type", flags: "i" }
       first: true
     option: "{inference_type}"
+    option_prefix: true
     open_wait_ms: 1000
     settle_ms: 500
 
@@ -315,6 +320,7 @@ flow:
       name: { regex: "^Do you want to estimate with image as input\\?", flags: "i" }
       first: true
     option: "Yes"
+    option_prefix: true
     open_wait_ms: 800
     settle_ms: 400
 
@@ -326,6 +332,7 @@ flow:
       name: { regex: "^Do you want to estimate with prompt caching enabled\\?", flags: "i" }
       first: true
     option: "Yes"
+    option_prefix: true
     open_wait_ms: 800
     settle_ms: 400
 
