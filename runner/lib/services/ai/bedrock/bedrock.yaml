@@ -85,7 +85,7 @@
 # =============================================================================
 
 service: bedrock
-version: 0.3.0
+version: 0.3.1
 
 meta:
   name: Amazon Bedrock
@@ -205,70 +205,105 @@ fields:
 
 flow:
   # ----- Provider selection ------------------------------------------------
-  # Activate exactly one provider checkbox; flip Amazon (the wizard's
-  # default-on provider) OFF when caller picked something else. Other
-  # non-default providers don't need an explicit "false" branch because
-  # they start unchecked and we only activate one at a time.
-  # check_checkbox is idempotent so re-running with the same desired
-  # state is a no-op. See header note for why we target the data-id
-  # wrapper rather than the input directly.
-  # `force: true`: the sibling span (`...prevented` class) intercepts
-  # pointer events so Playwright's actionability gate blocks the click;
-  # force-clicking bypasses it. The native input still receives the
-  # click via Playwright's input-dispatch path.
-  - when: "provider == 'Amazon'"
-    action: check_checkbox
-    css: '[data-id="amazon"] input[type="checkbox"]'
-    value: true
-    force: true
+  # Defensive flip-all-off-except-chosen: AWS occasionally flips the
+  # default-on provider (Amazon today; the wizard has changed which one is
+  # active by default in past revs). To guarantee the saved estimate only
+  # bills the provider the caller asked for, we explicitly flip OFF every
+  # other ACTIVE provider and ON the chosen one. Disabled providers
+  # (ai21, cohere, lumaAi, stabilityAi at time of writing) are skipped
+  # because the wizard locks their checkbox.
+  #
+  # check_checkbox is idempotent (reads current state, only clicks when it
+  # has to flip). The `force: true` flag bypasses the CloudScape span that
+  # otherwise intercepts pointer events on the native input.
   - when: "provider != 'Amazon'"
     action: check_checkbox
     css: '[data-id="amazon"] input[type="checkbox"]'
     value: false
     force: true
+  - when: "provider != 'Anthropic'"
+    action: check_checkbox
+    css: '[data-id="anthropic"] input[type="checkbox"]'
+    value: false
+    force: true
+  - when: "provider != 'DeepSeek'"
+    action: check_checkbox
+    css: '[data-id="deepseek"] input[type="checkbox"]'
+    value: false
+    force: true
+  - when: "provider != 'Meta'"
+    action: check_checkbox
+    css: '[data-id="meta"] input[type="checkbox"]'
+    value: false
+    force: true
+  - when: "provider != 'Mistral'"
+    action: check_checkbox
+    css: '[data-id="mistral"] input[type="checkbox"]'
+    value: false
+    force: true
+  - when: "provider != 'OpenAI'"
+    action: check_checkbox
+    css: '[data-id="openAi"] input[type="checkbox"]'
+    value: false
+    force: true
+  - when: "provider != 'Qwen'"
+    action: check_checkbox
+    css: '[data-id="qwen"] input[type="checkbox"]'
+    value: false
+    force: true
+  - when: "provider != 'TwelveLabs'"
+    action: check_checkbox
+    css: '[data-id="twelveLabs"] input[type="checkbox"]'
+    value: false
+    force: true
+  - when: "provider != 'Writer'"
+    action: check_checkbox
+    css: '[data-id="writer"] input[type="checkbox"]'
+    value: false
+    force: true
 
+  # Now activate the chosen one (idempotent so the off-step above for the
+  # chosen provider was a no-op when its `when` didn't match).
+  - when: "provider == 'Amazon'"
+    action: check_checkbox
+    css: '[data-id="amazon"] input[type="checkbox"]'
+    value: true
+    force: true
   - when: "provider == 'Anthropic'"
     action: check_checkbox
     css: '[data-id="anthropic"] input[type="checkbox"]'
     value: true
     force: true
-
   - when: "provider == 'DeepSeek'"
     action: check_checkbox
     css: '[data-id="deepseek"] input[type="checkbox"]'
     value: true
     force: true
-
   - when: "provider == 'Meta'"
     action: check_checkbox
     css: '[data-id="meta"] input[type="checkbox"]'
     value: true
     force: true
-
   - when: "provider == 'Mistral'"
     action: check_checkbox
     css: '[data-id="mistral"] input[type="checkbox"]'
     value: true
     force: true
-
   - when: "provider == 'OpenAI'"
     action: check_checkbox
     css: '[data-id="openAi"] input[type="checkbox"]'
     value: true
     force: true
-
   - when: "provider == 'Qwen'"
     action: check_checkbox
     css: '[data-id="qwen"] input[type="checkbox"]'
     value: true
     force: true
-
   - when: "provider == 'TwelveLabs'"
     action: check_checkbox
     css: '[data-id="twelveLabs"] input[type="checkbox"]'
     value: true
     force: true
-
   - when: "provider == 'Writer'"
     action: check_checkbox
     css: '[data-id="writer"] input[type="checkbox"]'
