@@ -1,0 +1,136 @@
+# =============================================================================
+# AWS Key Management Service (KMS) — service datasheet
+# =============================================================================
+# Discovery (May 2026 wizard) revealed a flat set of six numeric inputs and
+# NO tier toggle, NO unit dropdowns, NO checkboxes for XKS / multi-Region /
+# HMAC. The calculator monetises KMS purely through:
+#
+#   - Customer Master Key count (prorated per month, with the first 20k of
+#     CMK-months in the free tier per AWS docs)
+#   - Five request-type buckets, each priced per request after the 20k-req
+#     free-tier allowance:
+#       * symmetric requests
+#       * asymmetric requests EXCEPT RSA 2048
+#       * asymmetric requests INVOLVING RSA 2048
+#       * ECC GenerateDataKeyPair requests
+#       * RSA GenerateDataKeyPair requests
+#
+# All six inputs are plain textboxes (no spinbutton, no paired unit combobox),
+# so we apply via the `text` ui kind. External Key Store (XKS), multi-Region
+# replica keys, and HMAC operations are NOT separately surfaced in the wizard
+# at the time of authoring — XKS request volume folds into the symmetric
+# bucket via the AWS price list. Re-snapshot the wizard if AWS adds them.
+# =============================================================================
+
+service: kms
+version: 0.2.0
+
+meta:
+  name: AWS Key Management Service
+  search: Key Management
+  config_pattern: "AWS Key Management Service"
+  category: security
+  description: |
+    AWS KMS pricing — customer-managed CMK count (prorated per month) plus
+    five per-request buckets covering symmetric, asymmetric (split RSA 2048
+    vs other), and ECC/RSA GenerateDataKeyPair operations.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: customer_managed_cmks
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      Number of customer-managed Customer Master Keys (CMKs). AWS-managed
+      keys are free and not counted here. First 20k CMK-months/year are
+      free per AWS docs; the calculator applies that automatically.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of customer managed Customer Master Keys" } }
+
+  - id: symmetric_requests
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      Symmetric-key API requests per month (Encrypt, Decrypt, GenerateDataKey
+      with symmetric CMKs, etc.). External Key Store (XKS) requests fold in
+      here per the AWS price list.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of symmetric requests" } }
+
+  - id: asymmetric_requests_non_rsa2048
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      Asymmetric API requests per month for any key type EXCEPT RSA 2048
+      (e.g. RSA 3072/4096, ECC sign/verify). Priced higher than symmetric.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of asymmetric requests except RSA 2048" } }
+
+  - id: asymmetric_requests_rsa2048
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      Asymmetric API requests per month using RSA 2048 keys. Cheaper than
+      other asymmetric key sizes; tracked in its own bucket by the wizard.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of asymmetric requests involving RSA 2048" } }
+
+  - id: ecc_generate_data_key_pair_requests
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      GenerateDataKeyPair requests per month against ECC CMKs. Separate
+      pricing bucket from generic asymmetric requests.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of ECC GenerateDataKeyPair requests" } }
+
+  - id: rsa_generate_data_key_pair_requests
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      GenerateDataKeyPair requests per month against RSA CMKs. Separate
+      pricing bucket from generic asymmetric requests.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of RSA GenerateDataKeyPair requests" } }
+
+flow:
+  - apply: customer_managed_cmks
+    when: "customer_managed_cmks > 0"
+  - apply: symmetric_requests
+    when: "symmetric_requests > 0"
+  - apply: asymmetric_requests_non_rsa2048
+    when: "asymmetric_requests_non_rsa2048 > 0"
+  - apply: asymmetric_requests_rsa2048
+    when: "asymmetric_requests_rsa2048 > 0"
+  - apply: ecc_generate_data_key_pair_requests
+    when: "ecc_generate_data_key_pair_requests > 0"
+  - apply: rsa_generate_data_key_pair_requests
+    when: "rsa_generate_data_key_pair_requests > 0"
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: textbox, name: { regex: "Number of customer managed Customer Master Keys" }, label: "customer-managed CMK count textbox" }
+  - { role: textbox, name: { regex: "Number of symmetric requests" }, label: "symmetric requests textbox" }
+  - { role: textbox, name: { regex: "Number of asymmetric requests except RSA 2048" }, label: "asymmetric non-RSA2048 requests textbox" }
+  - { role: textbox, name: { regex: "Number of asymmetric requests involving RSA 2048" }, label: "asymmetric RSA2048 requests textbox" }
+  - { role: textbox, name: { regex: "Number of ECC GenerateDataKeyPair requests" }, label: "ECC GenerateDataKeyPair textbox" }
+  - { role: textbox, name: { regex: "Number of RSA GenerateDataKeyPair requests" }, label: "RSA GenerateDataKeyPair textbox" }

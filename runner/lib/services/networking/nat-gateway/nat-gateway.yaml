@@ -1,0 +1,182 @@
+# =============================================================================
+# Amazon VPC — NAT Gateway — service datasheet
+# =============================================================================
+# NAT Gateway is a sub-service of the AWS Calculator's "Amazon Virtual Private
+# Cloud" wizard (same wizard used by `vpn`). It is OFF by default; the wizard
+# exposes a "Network Address Translation (NAT) Gateway" sub-service checkbox
+# that, when toggled on, reveals inputs for: number of gateways, hours/month
+# each gateway is active, and data processed (value + unit).
+#
+# Pricing model (us-east-1, May 2026):
+#   - $0.045 / NAT Gateway-hour (~ $32.85/mo per gateway at 730h, often
+#     quoted as ~$45/mo per AZ once a typical month is rounded up).
+#   - $0.045 / GB processed by the gateway.
+# Material in any VPC stack — treated as its own service so callers must
+# add it explicitly when their architecture includes private subnets.
+#
+# The data-id `networkAddressTranslationNatGatewayVpc` follows the same
+# CloudScape pattern as the VPC wizard's `dataTransferVpc` sub-feature
+# checkbox (see vpn.yaml). Inputs are addressed by aria-label substrings;
+# the unit dropdown uses a role=button + name regex to match the unit
+# selector adjacent to the data-processed value field.
+# =============================================================================
+
+service: nat-gateway
+version: 0.2.0
+
+meta:
+  name: Amazon VPC NAT Gateway
+  search: VPC
+  config_pattern: "Amazon Virtual Private Cloud"
+  category: networking
+  description: |
+    NAT Gateway pricing inside the VPC wizard. Treated as a standalone
+    catalog entry so it can be added independently of (and alongside)
+    `vpn`, since AWS bills it independently of any other VPC feature.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  - id: number_of_nat_gateways
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      Number of NAT Gateways provisioned. One per AZ is the typical
+      HA pattern (~$45/mo each at full-month uptime). NAT is billed
+      per hour automatically — the wizard doesn't expose an hours
+      field for standard NAT Gateways.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of NAT Gateways Enter the amount" } }
+
+  - id: data_processed_amount
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      Volume of data processed by the NAT Gateways per month, in the
+      unit selected by data_processed_unit. Billed at $0.045/GB; in
+      egress-heavy stacks this often exceeds the hourly charge.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Data Processed per NAT Gateway Value" }
+
+  - id: data_processed_unit
+    type: enum
+    default: gb_per_month
+    description: Unit for data_processed_amount.
+    options:
+      - { value: gb_per_month, label: "GB per month", default: true }
+      - { value: tb_per_month, label: "TB per month" }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Data Processed per NAT Gateway" } }
+
+  # ---- Regional NAT Gateway (wizard FORCES non-zero values) ------------
+  # When the NAT Gateway sub-service checkbox is on, the wizard renders a
+  # "Regional NAT Gateway" subsection whose 3 inputs reject 0 — Save will
+  # silently stall on inline validation otherwise. We expose them so
+  # callers who actually use regional NAT can size them; otherwise we set
+  # the cheapest possible non-zero defaults (1 gateway × 1 AZ × 0 GB) to
+  # unblock Save. That adds ~$45/mo per regional NAT to the base cost.
+  - id: regional_nat_gateways
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    description: Number of Regional NAT Gateways. Wizard requires non-zero (~$45/mo per gateway).
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of Regional NAT Gateways Enter the amount" } }
+
+  - id: regional_nat_azs
+    type: integer
+    default: 1
+    constraints: { min: 1 }
+    description: Number of Availability Zones the Regional NAT Gateway spans. Wizard requires non-zero.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of Availability Zones Regional NAT Gateways" } }
+
+  - id: regional_data_processed_amount
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Data processed per Regional NAT Gateway (in regional_data_processed_unit). Defaults to 0 (no traffic).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Data processed per Regional NAT Gateway Value" }
+
+  - id: regional_data_processed_unit
+    type: enum
+    default: gb_per_month
+    description: Unit for regional_data_processed_amount.
+    options:
+      - { value: gb_per_month, label: "GB per month", default: true }
+      - { value: tb_per_month, label: "TB per month" }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Data processed per Regional NAT Gateway Unit" } }
+
+# The VPC wizard nests sub-services below a lazy-rendered toggle grid; same
+# scroll prerequisite as vpn.yaml is needed so the NAT Gateway checkbox and
+# its inputs are mounted before we try to interact with them.
+flow:
+  - { action: scroll, dy: 600 }
+  - { action: wait_ms, ms: 400 }
+
+  # Toggle the NAT Gateway sub-service whenever any NAT field is non-zero.
+  # Native input.click() via toggle_checkbox_data_id bypasses the
+  # CloudScape span-intercepts-pointer-events bug that the role-based
+  # check_checkbox runs into for VPC sub-service checkboxes.
+  - when: "number_of_nat_gateways > 0 || data_processed_amount > 0"
+    action: toggle_checkbox_data_id
+    targets: { networkAddressTranslationNatGatewayVpc: true }
+
+  # The NAT section + Regional NAT subsection lazy-render after the
+  # checkbox toggle. 600ms wasn't enough for the regional inputs to
+  # be reliably interactable; bumped to 1500ms.
+  - { action: wait_ms, ms: 1500 }
+
+  - apply: number_of_nat_gateways
+    when: "number_of_nat_gateways > 0"
+
+  # Data processed: value + unit always paired (same SES/VPN convention).
+  - apply: data_processed_amount
+    when: "data_processed_amount > 0"
+  - apply: data_processed_unit
+    when: "data_processed_amount > 0"
+
+  # Regional NAT — always apply (wizard rejects 0); defaults to 1/1/0 so
+  # callers who don't use regional NAT pay just the base hourly fee for 1
+  # gateway. Skip the apply when explicitly overridden to 0 (caller knows
+  # what they're doing).
+  - apply: regional_nat_gateways
+    when: "regional_nat_gateways > 0 && number_of_nat_gateways > 0"
+  - apply: regional_nat_azs
+    when: "regional_nat_azs > 0 && number_of_nat_gateways > 0"
+  # Always apply (wizard rejects empty) — even when 0 we must explicitly
+  # fill the field with "0" or it stays in placeholder state and Save
+  # complains "Data processed per Regional NAT Gateway is required".
+  - apply: regional_data_processed_amount
+    when: "number_of_nat_gateways > 0"
+  - apply: regional_data_processed_unit
+    when: "regional_data_processed_amount > 0"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 1500 }
+
+health_prerequisite_flow:
+  - { action: scroll, dy: 600 }
+  - { action: wait_ms, ms: 400 }
+  - action: toggle_checkbox_data_id
+    targets: { networkAddressTranslationNatGatewayVpc: true }
+  - { action: wait_ms, ms: 600 }
+
+health_locators:
+  - { css: 'input[aria-label*="Number of NAT Gateways"]', label: "Number of NAT Gateways input" }

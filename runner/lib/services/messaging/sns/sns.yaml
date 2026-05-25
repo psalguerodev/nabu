@@ -1,0 +1,311 @@
+# =============================================================================
+# Amazon Simple Notification Service (SNS) — service datasheet
+# =============================================================================
+# Fan-out notifications. Surfaces both Standard topics (default-on) and FIFO
+# topics (opt-in). The wizard does NOT expose SMS or per-subscription mobile
+# push counts as configurable inputs — those are billed but not modelled here.
+#
+# Locator notes (validated via wizard discovery):
+#   - Numeric inputs are `role: spinbutton`, accessible name = "<field> Value".
+#   - Each Value is paired with a `Unit <field>` button (per month / million
+#     per month for counts; GB/TB per month for sizes; Byte/KB for FIFO
+#     average message size).
+#   - Standard + FIFO sections share the same "Service settings" label;
+#     when both are enabled the FIFO section's spinbuttons are nth=1
+#     (Standard at nth=0). We always disable FIFO unless the caller opts
+#     in, so the Standard locators stay strict-mode-safe by default.
+#   - Dropdown options are NOT doubled — `option_prefix` not needed.
+#   - Checkboxes work cleanly via role-based locators — no `force: true`.
+# =============================================================================
+
+service: sns
+version: 0.2.0
+
+meta:
+  name: Amazon Simple Notification Service (SNS)
+  search: Simple Notification
+  config_pattern: "Amazon Simple Notification Service \\(SNS\\)"
+  category: messaging
+  description: |
+    Pub/sub notifications. Standard topics deliver via HTTP/S, Email,
+    SQS, Lambda, Firehose and Mobile Push. FIFO topics provide ordered
+    + exactly-once delivery with per-subscription billing.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  # ---- Topic type toggles ----------------------------------------------
+  - id: enable_standard
+    type: boolean
+    default: true
+    description: Standard topics section (default-on in the wizard). Disable only when modelling FIFO-only workloads.
+    ui:
+      kind: checkbox
+      locator: { role: checkbox, name: "Standard topics" }
+
+  - id: enable_fifo
+    type: boolean
+    default: false
+    description: FIFO Topics section (opt-in). Exposes per-subscription, ordered-delivery fields.
+    ui:
+      kind: checkbox
+      locator: { role: checkbox, name: "FIFO Topics" }
+
+  # ---- Standard: service settings (millions per month default) ---------
+  - id: requests_millions
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Standard topic requests per month (in millions by default).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Requests Value", first: true }
+
+  - id: requests_unit
+    type: enum
+    default: million_per_month
+    description: Unit for requests_millions.
+    options:
+      - { value: per_month,         label: "per month" }
+      - { value: million_per_month, label: "million per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Requests" }, first: true }
+
+  - id: http_notifications_millions
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Standard HTTP/HTTPS notifications per month (millions by default).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "HTTP/HTTPS Notifications Value" }
+
+  - id: http_notifications_unit
+    type: enum
+    default: million_per_month
+    description: Unit for http_notifications_millions.
+    options:
+      - { value: per_month,         label: "per month" }
+      - { value: million_per_month, label: "million per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit HTTP/HTTPS Notifications" } }
+
+  - id: email_notifications_millions
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Standard EMAIL / EMAIL-JSON notifications per month (millions by default).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "EMAIL/EMAIL-JSON Notifications Value" }
+
+  - id: email_notifications_unit
+    type: enum
+    default: million_per_month
+    description: Unit for email_notifications_millions.
+    options:
+      - { value: per_month,         label: "per month" }
+      - { value: million_per_month, label: "million per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit EMAIL/EMAIL-JSON Notifications" } }
+
+  - id: sqs_notifications_millions
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Standard SQS notifications per month (millions by default).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "SQS Notifications Value" }
+
+  - id: sqs_notifications_unit
+    type: enum
+    default: million_per_month
+    description: Unit for sqs_notifications_millions.
+    options:
+      - { value: per_month,         label: "per month" }
+      - { value: million_per_month, label: "million per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit SQS Notifications" } }
+
+  - id: lambda_notifications_millions
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Standard Lambda notifications per month (millions by default).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Amazon Web Services Lambda Value" }
+
+  - id: lambda_notifications_unit
+    type: enum
+    default: million_per_month
+    description: Unit for lambda_notifications_millions.
+    options:
+      - { value: per_month,         label: "per month" }
+      - { value: million_per_month, label: "million per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Amazon Web Services Lambda" } }
+
+  - id: firehose_notifications_millions
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Standard Kinesis Data Firehose notifications per month (millions by default).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Amazon Kinesis Data Firehose Value" }
+
+  - id: firehose_notifications_unit
+    type: enum
+    default: million_per_month
+    description: Unit for firehose_notifications_millions.
+    options:
+      - { value: per_month,         label: "per month" }
+      - { value: million_per_month, label: "million per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Amazon Kinesis Data Firehose" } }
+
+  - id: mobile_push_notifications_millions
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Standard Mobile Push notifications per month (millions by default).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Mobile Push Notifications Value" }
+
+  - id: mobile_push_notifications_unit
+    type: enum
+    default: million_per_month
+    description: Unit for mobile_push_notifications_millions.
+    options:
+      - { value: per_month,         label: "per month" }
+      - { value: million_per_month, label: "million per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Mobile Push Notifications" } }
+
+  # ---- FIFO topics section (opt-in) ------------------------------------
+  # When enable_fifo == true the wizard renders a SECOND "Service settings"
+  # group whose spinbuttons share the labels with Standard. We target the
+  # Standard set with first: true and the FIFO set with nth: 1.
+  - id: fifo_requests_millions
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "enable_fifo == true"
+    description: FIFO topic requests per month (millions by default). nth=1 of "Requests Value".
+
+  - id: fifo_avg_message_size
+    type: number
+    default: 1
+    constraints: { min: 0 }
+    visible_when: "enable_fifo == true"
+    description: FIFO topics — average message size (KB by default).
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Average message size Value" }
+
+  - id: fifo_message_size_unit
+    type: enum
+    default: kb
+    description: Unit for fifo_avg_message_size.
+    options:
+      - { value: byte, label: "Byte" }
+      - { value: kb,   label: "KB", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Unit Average message size" } }
+
+  - id: fifo_subscriptions
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "enable_fifo == true"
+    description: FIFO topics — number of subscriptions per month.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Number of subscriptions Enter Number of subscriptions per month" } }
+
+flow:
+  # ----- Topic type toggles (Standard default-on, FIFO opt-in) ----------
+  - apply: enable_standard
+    when: "enable_standard == false"
+  - apply: enable_fifo
+    when: "enable_fifo == true"
+
+  - { action: wait_ms, ms: 800 }
+
+  # ----- Standard service settings (skip per row when value is 0) -------
+  - apply: requests_millions
+    when: "enable_standard == true && requests_millions > 0"
+  - apply: requests_unit
+    when: "enable_standard == true && requests_millions > 0"
+
+  - apply: http_notifications_millions
+    when: "enable_standard == true && http_notifications_millions > 0"
+  - apply: http_notifications_unit
+    when: "enable_standard == true && http_notifications_millions > 0"
+
+  - apply: email_notifications_millions
+    when: "enable_standard == true && email_notifications_millions > 0"
+  - apply: email_notifications_unit
+    when: "enable_standard == true && email_notifications_millions > 0"
+
+  - apply: sqs_notifications_millions
+    when: "enable_standard == true && sqs_notifications_millions > 0"
+  - apply: sqs_notifications_unit
+    when: "enable_standard == true && sqs_notifications_millions > 0"
+
+  - apply: lambda_notifications_millions
+    when: "enable_standard == true && lambda_notifications_millions > 0"
+  - apply: lambda_notifications_unit
+    when: "enable_standard == true && lambda_notifications_millions > 0"
+
+  - apply: firehose_notifications_millions
+    when: "enable_standard == true && firehose_notifications_millions > 0"
+  - apply: firehose_notifications_unit
+    when: "enable_standard == true && firehose_notifications_millions > 0"
+
+  - apply: mobile_push_notifications_millions
+    when: "enable_standard == true && mobile_push_notifications_millions > 0"
+  - apply: mobile_push_notifications_unit
+    when: "enable_standard == true && mobile_push_notifications_millions > 0"
+
+  # ----- FIFO topic fills (when enable_fifo == true) --------------------
+  # FIFO Requests + FIFO Avg Size share spinbutton labels with Standard;
+  # we always target nth=1 for FIFO.
+  - when: "enable_fifo == true && fifo_requests_millions > 0"
+    action: fill
+    role: spinbutton
+    name: "Requests Value"
+    nth: 1
+    value: "{fifo_requests_millions}"
+
+  - apply: fifo_avg_message_size
+    when: "enable_fifo == true && fifo_avg_message_size != 1"
+  - apply: fifo_message_size_unit
+    when: "enable_fifo == true && fifo_avg_message_size != 1"
+
+  - apply: fifo_subscriptions
+    when: "enable_fifo == true && fifo_subscriptions > 0"
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 1500 }
+
+health_locators:
+  - { role: checkbox, name: "Standard topics", label: "Standard topics checkbox" }
+  - { role: spinbutton, name: "Requests Value", label: "requests spinbutton" }
+  - { role: spinbutton, name: "HTTP/HTTPS Notifications Value", label: "HTTP/HTTPS notifications spinbutton" }

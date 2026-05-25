@@ -1,0 +1,200 @@
+# =============================================================================
+# Amazon Simple Queue Service (SQS) — service datasheet
+# =============================================================================
+# v0.2.0 scope: the three request-count surfaces exposed by the AWS Pricing
+# Calculator wizard (Standard, FIFO, Fair queues) plus their unit dropdowns.
+#
+# NOT modeled (v0.2.0):
+#   - Data Transfer (inbound/outbound) sub-blocks. They use a per-row
+#     "Data transfer from/to" search picker that targets specific AWS services
+#     and regions. Punted to a future revision since most callers model
+#     SQS↔EC2 traffic on the EC2 side already.
+#
+# Payload size: the SQS wizard does NOT expose an "average payload size"
+# field. SQS bills per 64KB chunk; if a caller's messages exceed 64KB they
+# must pre-multiply their message count before passing it as `*_requests`.
+#
+# Unit dropdown lesson (see Systems Manager / CLAUDE.md): every numeric input
+# is paired with a Unit dropdown that defaults to "million per month". We
+# always set the unit explicitly via raw `select_dropdown` steps with
+# `option_prefix: true` because CloudScape renders the selected option's
+# accessible name doubled (e.g. "million per monthmillion per month").
+# =============================================================================
+
+service: sqs
+version: 0.2.0
+
+meta:
+  name: Amazon Simple Queue Service (SQS)
+  search: SQS
+  config_pattern: "Amazon Simple Queue Service \\(SQS\\)"
+  category: messaging
+  description: |
+    Amazon SQS request volume across Standard, FIFO and Fair queue types.
+    Pricing: $0.40 per million Standard requests, $0.50 per million FIFO
+    requests, and $0.60 per million Fair queue requests (first 1M/month
+    free for Standard). Each 64KB of payload = 1 request — callers must
+    pre-chunk if messages exceed 64KB.
+
+fields:
+  - id: region
+    type: string
+    required: true
+    default: us-east-1
+    description: AWS region code.
+    ui: { kind: region_modal }
+
+  # ---- Standard queue --------------------------------------------------
+  - id: standard_requests
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      Standard queue request volume. Pair with `standard_requests_unit`
+      (default `million per month`). Each 64KB of message payload counts
+      as one request.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "^Standard queue requests Value" } }
+
+  - id: standard_requests_unit
+    type: enum
+    default: million_per_month
+    description: |
+      Unit for standard_requests. Wizard default is `million per month`.
+      Available units: `million per day`, `million per week`,
+      `million per month`.
+    options:
+      - { value: million_per_day,   label: "million per day" }
+      - { value: million_per_week,  label: "million per week" }
+      - { value: million_per_month, label: "million per month", default: true }
+
+  # ---- FIFO queue ------------------------------------------------------
+  - id: fifo_requests
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      FIFO queue request volume. Pair with `fifo_requests_unit`. FIFO
+      queues guarantee exactly-once processing and message ordering.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "^FIFO queue requests Value" } }
+
+  - id: fifo_requests_unit
+    type: enum
+    default: million_per_month
+    description: Unit for fifo_requests. Wizard default million per month.
+    options:
+      - { value: million_per_day,   label: "million per day" }
+      - { value: million_per_week,  label: "million per week" }
+      - { value: million_per_month, label: "million per month", default: true }
+
+  # ---- Fair queue (newer SQS feature) ----------------------------------
+  - id: fair_requests
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      Fair queue request volume. Fair queues provide multi-tenant
+      fairness guarantees on top of Standard semantics.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: { regex: "^Fair queue requests Value" } }
+
+  - id: fair_requests_unit
+    type: enum
+    default: million_per_month
+    description: Unit for fair_requests. Wizard default million per month.
+    options:
+      - { value: million_per_day,   label: "million per day" }
+      - { value: million_per_week,  label: "million per week" }
+      - { value: million_per_month, label: "million per month", default: true }
+
+flow:
+  # ---- Standard ---------------------------------------------------------
+  - apply: standard_requests
+    when: "standard_requests > 0"
+
+  - when: "standard_requests > 0 && standard_requests_unit == 'million_per_day'"
+    action: select_dropdown
+    trigger: { role: button, name: { regex: "^Unit Standard queue requests" } }
+    option: "million per day"
+    option_prefix: true
+    open_wait_ms: 600
+    settle_ms: 400
+  - when: "standard_requests > 0 && standard_requests_unit == 'million_per_week'"
+    action: select_dropdown
+    trigger: { role: button, name: { regex: "^Unit Standard queue requests" } }
+    option: "million per week"
+    option_prefix: true
+    open_wait_ms: 600
+    settle_ms: 400
+  - when: "standard_requests > 0 && standard_requests_unit == 'million_per_month'"
+    action: select_dropdown
+    trigger: { role: button, name: { regex: "^Unit Standard queue requests" } }
+    option: "million per month"
+    option_prefix: true
+    open_wait_ms: 600
+    settle_ms: 400
+
+  # ---- FIFO -------------------------------------------------------------
+  - apply: fifo_requests
+    when: "fifo_requests > 0"
+
+  - when: "fifo_requests > 0 && fifo_requests_unit == 'million_per_day'"
+    action: select_dropdown
+    trigger: { role: button, name: { regex: "^Unit FIFO queue requests" } }
+    option: "million per day"
+    option_prefix: true
+    open_wait_ms: 600
+    settle_ms: 400
+  - when: "fifo_requests > 0 && fifo_requests_unit == 'million_per_week'"
+    action: select_dropdown
+    trigger: { role: button, name: { regex: "^Unit FIFO queue requests" } }
+    option: "million per week"
+    option_prefix: true
+    open_wait_ms: 600
+    settle_ms: 400
+  - when: "fifo_requests > 0 && fifo_requests_unit == 'million_per_month'"
+    action: select_dropdown
+    trigger: { role: button, name: { regex: "^Unit FIFO queue requests" } }
+    option: "million per month"
+    option_prefix: true
+    open_wait_ms: 600
+    settle_ms: 400
+
+  # ---- Fair -------------------------------------------------------------
+  - apply: fair_requests
+    when: "fair_requests > 0"
+
+  - when: "fair_requests > 0 && fair_requests_unit == 'million_per_day'"
+    action: select_dropdown
+    trigger: { role: button, name: { regex: "^Unit Fair queue requests" } }
+    option: "million per day"
+    option_prefix: true
+    open_wait_ms: 600
+    settle_ms: 400
+  - when: "fair_requests > 0 && fair_requests_unit == 'million_per_week'"
+    action: select_dropdown
+    trigger: { role: button, name: { regex: "^Unit Fair queue requests" } }
+    option: "million per week"
+    option_prefix: true
+    open_wait_ms: 600
+    settle_ms: 400
+  - when: "fair_requests > 0 && fair_requests_unit == 'million_per_month'"
+    action: select_dropdown
+    trigger: { role: button, name: { regex: "^Unit Fair queue requests" } }
+    option: "million per month"
+    option_prefix: true
+    open_wait_ms: 600
+    settle_ms: 400
+
+  - { action: press_key, key: "Tab" }
+  - { action: wait_ms, ms: 500 }
+
+health_locators:
+  - { role: spinbutton, name: { regex: "^Standard queue requests Value" }, label: "standard queue requests spinbutton" }
+  - { role: spinbutton, name: { regex: "^FIFO queue requests Value" },     label: "FIFO queue requests spinbutton" }
+  - { role: spinbutton, name: { regex: "^Fair queue requests Value" },     label: "fair queue requests spinbutton" }
+  - { role: button,     name: { regex: "^Unit Standard queue requests" },  label: "standard requests unit dropdown" }

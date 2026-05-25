@@ -49,7 +49,9 @@ test("list_supported_services returns the services defined in the catalog", asyn
       "ecr",
       "eventbridge",
       "glue",
+      "kms",
       "lambda",
+      "nat-gateway",
       "redshift",
       "s3",
       "s3-vectors",
@@ -62,6 +64,8 @@ test("list_supported_services returns the services defined in the catalog", asyn
       "sagemaker-training",
       "secrets-manager",
       "ses",
+      "sns",
+      "sqs",
       "step-functions",
       "systems-manager",
       "textract",
@@ -69,7 +73,7 @@ test("list_supported_services returns the services defined in the catalog", asyn
       "waf",
       "xray",
     ]);
-    assert.equal(payload.count, 34);
+    assert.equal(payload.count, 38);
     assert.equal(payload.catalog_version, "0.1.0");
   } finally {
     await transport.close();

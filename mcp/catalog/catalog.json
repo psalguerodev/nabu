@@ -91,11 +91,23 @@
       "status": "schema-only",
       "tags": ["data", "etl"]
     },
+    "kms": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/kms.js",
+      "status": "schema-only",
+      "tags": ["security", "encryption"]
+    },
     "lambda": {
       "handler_version": "0.0.0",
       "schema_ref": "schemas/lambda.js",
       "status": "schema-only",
       "tags": ["compute", "serverless"]
+    },
+    "nat-gateway": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/nat-gateway.js",
+      "status": "schema-only",
+      "tags": ["networking", "vpc"]
     },
     "redshift": {
       "handler_version": "0.0.0",
@@ -168,6 +180,18 @@
       "schema_ref": "schemas/ses.js",
       "status": "schema-only",
       "tags": ["messaging", "email"]
+    },
+    "sns": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/sns.js",
+      "status": "schema-only",
+      "tags": ["messaging", "pubsub"]
+    },
+    "sqs": {
+      "handler_version": "0.0.0",
+      "schema_ref": "schemas/sqs.js",
+      "status": "schema-only",
+      "tags": ["messaging", "queue"]
     },
     "step-functions": {
       "handler_version": "0.0.0",
