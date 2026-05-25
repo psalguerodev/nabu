@@ -31,7 +31,7 @@
 # =============================================================================
 
 service: s3-vectors
-version: 0.2.0
+version: 0.2.1
 
 meta:
   name: Amazon S3 Vectors
@@ -161,7 +161,11 @@ flow:
   - apply: total_queries_per_month
 
   - { action: press_key, key: "Tab" }
-  - { action: wait_ms, ms: 500 }
+  # 3000ms: S3 Vectors flips three sub-feature checkboxes and fills six
+  # textboxes; the wizard recalc cascade can exceed 500ms before
+  # "Save and add service" transitions to Find Service in multi-service
+  # chains. Mirrors lambda/xray/dynamodb/cloudtrail precedent.
+  - { action: wait_ms, ms: 3000 }
 
 # Health probe must enable the S3 Vectors sub-feature before the textboxes
 # / spinbuttons render. Matches legacy healthPrerequisite (which only
