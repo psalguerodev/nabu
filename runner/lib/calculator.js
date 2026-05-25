@@ -116,10 +116,23 @@ export async function createEstimate(services, options = {}) {
       // line item in the calculator estimate is labelled. Falls back to
       // the service id when the caller doesn't pass one. Best-effort:
       // any failure here must not block the configure flow.
+      //
+      // Use exact label + .first() because wizards like WAF render extra
+      // Description-named textboxes (per Web ACL / per Rule) deeper in
+      // the form. A loose substring match would hit strict-mode at fill
+      // time and silently no-op.
       try {
         const descText = svc.description ?? svc.service;
-        const descBox = page.getByRole("textbox", { name: "Description" });
-        if (await descBox.isVisible({ timeout: 1000 }).catch(() => false)) {
+        // Loose substring match + .first() — exact:true was producing
+        // estimates that AWS's read-only share page couldn't render
+        // ("Sorry, something went wrong"). Loose match preserves the
+        // working v0 behaviour while .first() still disambiguates in
+        // wizards (WAF, etc.) that render multiple Description-named
+        // textboxes deeper in the form.
+        const descBox = page
+          .getByRole("textbox", { name: "Description" })
+          .first();
+        if (await descBox.isVisible({ timeout: 1500 }).catch(() => false)) {
           await descBox.fill(String(descText));
         }
       } catch {}

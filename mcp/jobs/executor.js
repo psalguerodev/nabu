@@ -63,13 +63,14 @@ export function runReal(jobId) {
   const rawServices = job.params?.services
     ? job.params.services
     : [{ service: job.service, params: job.params }];
-  const services = rawServices.map(({ service, params, group }) => {
+  const services = rawServices.map(({ service, params, group, description }) => {
     const entry = getCatalogEntry(service);
     return {
       service,
       params,
       handler_path: entry?.handlerPath ?? null,
       ...(group ? { group } : {}),
+      ...(description ? { description } : {}),
     };
   });
   child.stdin.write(
