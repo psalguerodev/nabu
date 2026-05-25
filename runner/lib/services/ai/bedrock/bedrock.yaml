@@ -48,7 +48,7 @@
 # =============================================================================
 
 service: bedrock
-version: 0.2.0
+version: 0.2.1
 
 meta:
   name: Amazon Bedrock
@@ -137,20 +137,20 @@ flow:
   # (avoids strict-mode locator collisions on the shared token textboxes).
   - when: "provider == 'Amazon'"
     action: check_checkbox
-    css: 'input[type="checkbox"]:near(:text-is("Amazon"))'
+    css: 'input[type="checkbox"]:not([disabled]):near(:text-is("Amazon"))'
     value: true
   - when: "provider == 'Amazon'"
     action: check_checkbox
-    css: 'input[type="checkbox"]:near(:text-is("Anthropic"))'
+    css: 'input[type="checkbox"]:not([disabled]):near(:text-is("Anthropic"))'
     value: false
 
   - when: "provider == 'Anthropic'"
     action: check_checkbox
-    css: 'input[type="checkbox"]:near(:text-is("Anthropic"))'
+    css: 'input[type="checkbox"]:not([disabled]):near(:text-is("Anthropic"))'
     value: true
   - when: "provider == 'Anthropic'"
     action: check_checkbox
-    css: 'input[type="checkbox"]:near(:text-is("Amazon"))'
+    css: 'input[type="checkbox"]:not([disabled]):near(:text-is("Amazon"))'
     value: false
 
   - { action: wait_ms, ms: 1500 }
