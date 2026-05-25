@@ -1,29 +1,64 @@
 # =============================================================================
-# Amazon S3 — service datasheet
+# Amazon S3 - service datasheet
 # =============================================================================
-# Models the v0.1 imperative handler: S3 Standard storage (GB/month) plus
-# PUT and GET monthly request counts. Other storage classes / lifecycle /
-# transfer surfaces are deferred.
+# v0.2.x: only S3 Standard storage + PUT/GET requests were modeled. Datalakes
+# with lifecycle policies routing data to IA/Glacier tiers were systematically
+# under-estimated by 30-50%.
 #
-# v0.2.0 — converted from imperative index.js to YAML datasheet. Parameter
-# contract is identical (storage_gb, put_requests_per_month,
-# get_requests_per_month) so existing job specs keep working. storage_class
-# is preserved on the Zod schema for backward compat but only `standard` is
-# operational; the wizard's S3 Standard row is the always-on default.
+# v0.3.0 (additive): full storage-class coverage.
+#   - S3 Standard                  (default on; existing fields)
+#   - S3 Intelligent-Tiering       (toggled on via data-id)
+#   - S3 Standard-IA               (toggled on)
+#   - S3 One Zone-IA               (toggled on)
+#   - S3 Glacier Instant Retrieval (toggled on)
+#   - S3 Glacier Flexible Retrieval(toggled on)
+#   - S3 Glacier Deep Archive      (toggled on)
+#   - S3 Express One Zone          (toggled on)
+#
+# Authoring notes:
+#   - All new fields default to 0 and are gated with `when: <field> > 0`, so
+#     callers that only set Standard pay zero overhead and avoid spurious
+#     wizard toggles.
+#   - KNOWN LIMITATION: the `*_data_retrieval_gb` fields can time out on
+#     Glacier Flexible / Deep Archive because the retrieval row inside
+#     those sections appears to lazy-render. Storage + put/get requests
+#     fields work cleanly. Pass retrieval values only when needed and be
+#     ready to retry; will scope a follow-up fix to expand the section
+#     explicitly before filling.
+#   - Existing field ids (storage_gb, put_requests_per_month,
+#     get_requests_per_month, storage_class) are preserved verbatim.
+#   - Request-count inputs (PUT/COPY/POST/LIST, GET/SELECT/...) are plain
+#     spinbuttons. Storage-GB and data-retrieval-GB inputs carry a Unit
+#     dropdown that defaults to "GB per month" - we rely on that default
+#     (consistent with v0.2 behavior for Standard) rather than emitting a
+#     separate dropdown step. If a future wizard revision changes the
+#     default, promote to explicit Unit dropdown steps per SES pattern.
+#   - Storage-class enable/disable uses `check_checkbox` targeting the
+#     wrapper's data-id (same approach as bedrock.yaml + bedrock-agentcore).
+#     data-ids discovered via DOM inspection on 2026-05-24:
+#       amazonS3Standard, amazonS3IntelligentTiering,
+#       amazonS3StandardInfrequentAccess, s3OneZoneInfrequentAccess,
+#       s3GlacierInstantRetrieval, amazonS3Glacier (Flexible Retrieval),
+#       amazonS3GlacierDeepArhive (sic - AWS markup has a typo),
+#       s3ExpressOneZone.
 # =============================================================================
 
 service: s3
-version: 0.2.1
+version: 0.3.0
 
 meta:
   name: Amazon S3
   search: S3
-  config_pattern: "Amazon S3"
+  config_pattern: "Amazon Simple Storage Service \\(S3\\)"
   category: storage
   description: |
-    Simple Storage Service — S3 Standard storage volume plus PUT/COPY/POST/LIST
-    and GET/SELECT monthly request counts. Other storage classes
-    (IA/Glacier), data transfer, and lifecycle transitions are not modeled.
+    Simple Storage Service - storage GB/month + PUT/COPY/POST/LIST and
+    GET/SELECT request counts across all major storage classes
+    (Standard, Intelligent-Tiering, Standard-IA, One Zone-IA, Glacier
+    Instant Retrieval, Glacier Flexible Retrieval, Glacier Deep Archive,
+    Express One Zone). Includes Glacier data-retrieval GB. Lifecycle
+    transition counts, S3 Select, Storage Lens, and Data Transfer are
+    not modeled.
 
 fields:
   - id: region
@@ -33,6 +68,9 @@ fields:
     description: AWS region code.
     ui: { kind: region_modal }
 
+  # ---------------------------------------------------------------------
+  # S3 Standard (default on)
+  # ---------------------------------------------------------------------
   - id: storage_gb
     type: number
     default: 0
@@ -40,22 +78,18 @@ fields:
     description: Average GB stored per month in S3 Standard.
     ui:
       kind: number
-      # CSS locator: <input> has a platform-dependent implicit role
-      # (textbox on Linux, spinbutton on macOS) — the css selector survives
-      # both, and the broad aria-label prefix tolerates the "Value" suffix
-      # AWS sometimes appends.
       locator: { css: 'input[aria-label^="S3 Standard storage"]' }
 
   - id: storage_class
     type: enum
     default: standard
-    description: Storage class (kept for backward compat; only `standard` drives the wizard today).
+    description: Storage class (backward compat; cosmetic - flow drives all classes via per-class fields).
     options:
       - { value: standard, label: "Standard", default: true }
       - { value: ia, label: "Infrequent Access" }
       - { value: glacier, label: "Glacier" }
     ui:
-      kind: section   # no step emitted
+      kind: section
 
   - id: put_requests_per_month
     type: integer
@@ -75,18 +109,386 @@ fields:
       kind: number
       locator: { css: 'input[aria-label*="from S3 Standard Enter"]' }
 
+  # ---------------------------------------------------------------------
+  # S3 Intelligent-Tiering
+  # ---------------------------------------------------------------------
+  - id: int_tiering_storage_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Average GB stored per month in S3 Intelligent-Tiering (sum across tiers).
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label="S3 INT storage Value"]' }
+
+  - id: int_tiering_put_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: PUT/COPY/POST/LIST requests per month against S3 Intelligent-Tiering.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="PUT, COPY, POST, LIST requests to S3 INT"]' }
+
+  - id: int_tiering_get_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: GET/SELECT/other requests per month from S3 Intelligent-Tiering.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="GET, SELECT, and all other requests from S3 INT"]' }
+
+  # ---------------------------------------------------------------------
+  # S3 Standard-IA
+  # ---------------------------------------------------------------------
+  - id: standard_ia_storage_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Average GB stored per month in S3 Standard-Infrequent Access.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label="S3 Standard-IA storage Value"]' }
+
+  - id: standard_ia_put_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: PUT/COPY/POST/LIST requests per month against S3 Standard-IA.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="PUT, COPY, POST, LIST requests to S3 Standard-IA"]' }
+
+  - id: standard_ia_get_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: GET/SELECT/other requests per month from S3 Standard-IA.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="GET, SELECT, and all other requests from S3 Standard-IA"]' }
+
+  - id: standard_ia_data_retrieval_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: GB of data retrieved per month from S3 Standard-IA.
+    ui:
+      kind: number
+      # Standard-IA's "Data retrievals Value" input - unique to this section
+      # (lowercase "retrievals" vs One Zone-IA's "Data Retrievals Value").
+      locator: { css: 'input[aria-label="Data retrievals Value"]' }
+
+  # ---------------------------------------------------------------------
+  # S3 One Zone-IA
+  # ---------------------------------------------------------------------
+  - id: one_zone_ia_storage_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Average GB stored per month in S3 One Zone-Infrequent Access.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label="S3 One Zone-IA storage Value"]' }
+
+  - id: one_zone_ia_put_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: PUT/COPY/POST/LIST requests per month against S3 One Zone-IA.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="PUT, COPY, POST, LIST requests to S3 One Zone-IA"]' }
+
+  - id: one_zone_ia_get_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: GET/SELECT/other requests per month from S3 One Zone-IA.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="GET, SELECT, and all other requests from S3 One Zone-IA"]' }
+
+  - id: one_zone_ia_data_retrieval_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: GB of data retrieved per month from S3 One Zone-IA.
+    ui:
+      kind: number
+      # One Zone-IA + Glacier Instant Retrieval both expose "Data Retrievals
+      # Value" (capital R). One Zone-IA renders first in the wizard, so
+      # an unscoped CSS picks One Zone-IA. Glacier Instant uses nth=1 below.
+      locator: { css: 'input[aria-label="Data Retrievals Value"]' }
+
+  # ---------------------------------------------------------------------
+  # S3 Glacier Instant Retrieval
+  # ---------------------------------------------------------------------
+  - id: glacier_instant_storage_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Average GB stored per month in S3 Glacier Instant Retrieval.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label="S3 Glacier Instant Retrieval storage Value"]' }
+
+  - id: glacier_instant_put_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: PUT/COPY/POST/LIST requests per month against S3 Glacier Instant Retrieval.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="PUT, COPY, POST, LIST requests to S3 Glacier Instant Retrieval"]' }
+
+  - id: glacier_instant_get_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: GET/SELECT/other requests per month from S3 Glacier Instant Retrieval.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="GET, SELECT, and all other requests from S3 Glacier Instant Retrieval"]' }
+
+  - id: glacier_instant_data_retrieval_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: GB of data retrieved per month from S3 Glacier Instant Retrieval.
+    ui:
+      kind: number
+      # Second "Data Retrievals Value" match (after One Zone-IA). nth: 1 is
+      # 0-indexed - relies on AWS wizard ordering (Glacier Instant section
+      # appears after One Zone-IA). If toggling order is reversed in a
+      # future revision this needs to be re-anchored.
+      locator: { css: 'input[aria-label="Data Retrievals Value"]', nth: 1 }
+
+  # ---------------------------------------------------------------------
+  # S3 Glacier Flexible Retrieval
+  # ---------------------------------------------------------------------
+  - id: glacier_flexible_storage_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Average GB stored per month in S3 Glacier Flexible Retrieval.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label="S3 Glacier Flexible Retrieval storage Value"]' }
+
+  - id: glacier_flexible_put_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: PUT/COPY/POST/LIST requests per month against S3 Glacier Flexible Retrieval.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="PUT, COPY, POST, LIST requests to S3 Glacier Flexible Retrieval"]' }
+
+  - id: glacier_flexible_data_retrieval_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      GB of data retrieved per month via the Standard tier from S3 Glacier
+      Flexible Retrieval. Expedited and Bulk retrieval tiers are not
+      modeled in v0.3 - set this field to the dominant retrieval volume.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label="Data retrievals (Standard) Value"]' }
+
+  # ---------------------------------------------------------------------
+  # S3 Glacier Deep Archive
+  # ---------------------------------------------------------------------
+  - id: glacier_deep_archive_storage_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Average GB stored per month in S3 Glacier Deep Archive.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label="S3 Glacier Deep Archive storage Value"]' }
+
+  - id: glacier_deep_archive_put_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: PUT/COPY/POST/LIST requests per month against S3 Glacier Deep Archive.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="PUT, COPY, POST, LIST requests to S3 Glacier Deep Archive"]' }
+
+  - id: glacier_deep_archive_data_retrieval_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      GB of data retrieved per month via the Standard tier from S3 Glacier
+      Deep Archive. Bulk retrieval tier is not modeled in v0.3 - set this
+      field to the dominant retrieval volume.
+    ui:
+      kind: number
+      # Deep Archive's "Data retrievals (Standard) Value" collides with
+      # Glacier Flexible's identical label. Use nth: 1 - Deep Archive
+      # renders after Flexible in the wizard.
+      locator: { css: 'input[aria-label="Data retrievals (Standard) Value"]', nth: 1 }
+
+  # ---------------------------------------------------------------------
+  # S3 Express One Zone
+  # ---------------------------------------------------------------------
+  - id: express_one_zone_storage_gb
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Average GB stored per month in S3 Express One Zone.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label="S3 Express One Zone storage Value"]' }
+
+  - id: express_one_zone_put_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: PUT/COPY/POST/LIST/RENAME requests per month against S3 Express One Zone.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="PUT, COPY, POST, LIST, RENAME requests to S3 Express One Zone"]' }
+
+  - id: express_one_zone_get_requests_per_month
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: GET and all other requests per month from S3 Express One Zone.
+    ui:
+      kind: number
+      locator: { css: 'input[aria-label^="GET and all other requests from S3 Express One Zone"]' }
+
 flow:
+  # ---- S3 Standard (default-on; fill only if value > 0) -------------------
   - apply: storage_gb
     when: "storage_gb > 0"
-
   - apply: put_requests_per_month
     when: "put_requests_per_month > 0"
-
   - apply: get_requests_per_month
     when: "get_requests_per_month > 0"
 
+  # ---- S3 Intelligent-Tiering --------------------------------------------
+  - when: "int_tiering_storage_gb > 0 || int_tiering_put_requests_per_month > 0 || int_tiering_get_requests_per_month > 0"
+    action: check_checkbox
+    css: '[data-id="amazonS3IntelligentTiering"] input[type="checkbox"]'
+    value: true
+    force: true
+  - { action: wait_ms, ms: 800, when: "int_tiering_storage_gb > 0 || int_tiering_put_requests_per_month > 0 || int_tiering_get_requests_per_month > 0" }
+
+  - apply: int_tiering_storage_gb
+    when: "int_tiering_storage_gb > 0"
+  - apply: int_tiering_put_requests_per_month
+    when: "int_tiering_put_requests_per_month > 0"
+  - apply: int_tiering_get_requests_per_month
+    when: "int_tiering_get_requests_per_month > 0"
+
+  # ---- S3 Standard-IA -----------------------------------------------------
+  - when: "standard_ia_storage_gb > 0 || standard_ia_put_requests_per_month > 0 || standard_ia_get_requests_per_month > 0 || standard_ia_data_retrieval_gb > 0"
+    action: check_checkbox
+    css: '[data-id="amazonS3StandardInfrequentAccess"] input[type="checkbox"]'
+    value: true
+    force: true
+  - { action: wait_ms, ms: 800, when: "standard_ia_storage_gb > 0 || standard_ia_put_requests_per_month > 0 || standard_ia_get_requests_per_month > 0 || standard_ia_data_retrieval_gb > 0" }
+
+  - apply: standard_ia_storage_gb
+    when: "standard_ia_storage_gb > 0"
+  - apply: standard_ia_put_requests_per_month
+    when: "standard_ia_put_requests_per_month > 0"
+  - apply: standard_ia_get_requests_per_month
+    when: "standard_ia_get_requests_per_month > 0"
+  - apply: standard_ia_data_retrieval_gb
+    when: "standard_ia_data_retrieval_gb > 0"
+
+  # ---- S3 One Zone-IA -----------------------------------------------------
+  - when: "one_zone_ia_storage_gb > 0 || one_zone_ia_put_requests_per_month > 0 || one_zone_ia_get_requests_per_month > 0 || one_zone_ia_data_retrieval_gb > 0"
+    action: check_checkbox
+    css: '[data-id="s3OneZoneInfrequentAccess"] input[type="checkbox"]'
+    value: true
+    force: true
+  - { action: wait_ms, ms: 800, when: "one_zone_ia_storage_gb > 0 || one_zone_ia_put_requests_per_month > 0 || one_zone_ia_get_requests_per_month > 0 || one_zone_ia_data_retrieval_gb > 0" }
+
+  - apply: one_zone_ia_storage_gb
+    when: "one_zone_ia_storage_gb > 0"
+  - apply: one_zone_ia_put_requests_per_month
+    when: "one_zone_ia_put_requests_per_month > 0"
+  - apply: one_zone_ia_get_requests_per_month
+    when: "one_zone_ia_get_requests_per_month > 0"
+  - apply: one_zone_ia_data_retrieval_gb
+    when: "one_zone_ia_data_retrieval_gb > 0"
+
+  # ---- S3 Glacier Instant Retrieval --------------------------------------
+  - when: "glacier_instant_storage_gb > 0 || glacier_instant_put_requests_per_month > 0 || glacier_instant_get_requests_per_month > 0 || glacier_instant_data_retrieval_gb > 0"
+    action: check_checkbox
+    css: '[data-id="s3GlacierInstantRetrieval"] input[type="checkbox"]'
+    value: true
+    force: true
+  - { action: wait_ms, ms: 800, when: "glacier_instant_storage_gb > 0 || glacier_instant_put_requests_per_month > 0 || glacier_instant_get_requests_per_month > 0 || glacier_instant_data_retrieval_gb > 0" }
+
+  - apply: glacier_instant_storage_gb
+    when: "glacier_instant_storage_gb > 0"
+  - apply: glacier_instant_put_requests_per_month
+    when: "glacier_instant_put_requests_per_month > 0"
+  - apply: glacier_instant_get_requests_per_month
+    when: "glacier_instant_get_requests_per_month > 0"
+  - apply: glacier_instant_data_retrieval_gb
+    when: "glacier_instant_data_retrieval_gb > 0"
+
+  # ---- S3 Glacier Flexible Retrieval -------------------------------------
+  - when: "glacier_flexible_storage_gb > 0 || glacier_flexible_put_requests_per_month > 0 || glacier_flexible_data_retrieval_gb > 0"
+    action: check_checkbox
+    css: '[data-id="amazonS3Glacier"] input[type="checkbox"]'
+    value: true
+    force: true
+  - { action: wait_ms, ms: 800, when: "glacier_flexible_storage_gb > 0 || glacier_flexible_put_requests_per_month > 0 || glacier_flexible_data_retrieval_gb > 0" }
+
+  - apply: glacier_flexible_storage_gb
+    when: "glacier_flexible_storage_gb > 0"
+  - apply: glacier_flexible_put_requests_per_month
+    when: "glacier_flexible_put_requests_per_month > 0"
+  - apply: glacier_flexible_data_retrieval_gb
+    when: "glacier_flexible_data_retrieval_gb > 0"
+
+  # ---- S3 Glacier Deep Archive -------------------------------------------
+  # NB: AWS data-id has a typo - "GlacierDeepArhive" (missing 'c'). Verified
+  # via DOM inspection on 2026-05-24.
+  - when: "glacier_deep_archive_storage_gb > 0 || glacier_deep_archive_put_requests_per_month > 0 || glacier_deep_archive_data_retrieval_gb > 0"
+    action: check_checkbox
+    css: '[data-id="amazonS3GlacierDeepArhive"] input[type="checkbox"]'
+    value: true
+    force: true
+  - { action: wait_ms, ms: 800, when: "glacier_deep_archive_storage_gb > 0 || glacier_deep_archive_put_requests_per_month > 0 || glacier_deep_archive_data_retrieval_gb > 0" }
+
+  - apply: glacier_deep_archive_storage_gb
+    when: "glacier_deep_archive_storage_gb > 0"
+  - apply: glacier_deep_archive_put_requests_per_month
+    when: "glacier_deep_archive_put_requests_per_month > 0"
+  - apply: glacier_deep_archive_data_retrieval_gb
+    when: "glacier_deep_archive_data_retrieval_gb > 0"
+
+  # ---- S3 Express One Zone -----------------------------------------------
+  - when: "express_one_zone_storage_gb > 0 || express_one_zone_put_requests_per_month > 0 || express_one_zone_get_requests_per_month > 0"
+    action: check_checkbox
+    css: '[data-id="s3ExpressOneZone"] input[type="checkbox"]'
+    value: true
+    force: true
+  - { action: wait_ms, ms: 800, when: "express_one_zone_storage_gb > 0 || express_one_zone_put_requests_per_month > 0 || express_one_zone_get_requests_per_month > 0" }
+
+  - apply: express_one_zone_storage_gb
+    when: "express_one_zone_storage_gb > 0"
+  - apply: express_one_zone_put_requests_per_month
+    when: "express_one_zone_put_requests_per_month > 0"
+  - apply: express_one_zone_get_requests_per_month
+    when: "express_one_zone_get_requests_per_month > 0"
+
+  # ---- Settle ------------------------------------------------------------
   - { action: press_key, key: "Tab" }
-  - { action: wait_ms, ms: 500 }
+  - { action: wait_ms, ms: 1500 }
 
 health_locators:
   - { css: 'input[aria-label^="S3 Standard storage"]', label: "S3 Standard storage input" }

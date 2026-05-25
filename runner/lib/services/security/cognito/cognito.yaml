@@ -1,18 +1,32 @@
 # =============================================================================
 # Amazon Cognito — service datasheet
 # =============================================================================
-# Migrated from the imperative security/cognito/index.js handler (v0.1.0).
-# Models the three tier choice (Lite / Essentials / Plus), monthly active
-# users (MAU) and SAML/OIDC federation users.
+# v0.3.0 — Adds non-breaking optional fields:
+#   - advanced_security (Lite-only): Enabled|Disabled select. Lite is the only
+#     tier that exposes this control; Essentials and Plus have ASF baked in.
+#   - Machine-to-Machine (M2M) usage block: token requests, app clients, and
+#     optimization rates (% off baseline). Present in all tiers, tier-agnostic
+#     pricing block.
 #
-# The wizard exposes three radio buttons gating the user-pool pricing tier.
-# Lite is the wizard default (matches the v0.1 handler default). Tier
-# selection is ALWAYS applied — even when "lite" — to defend against any
-# stale state in the wizard.
+# The wizard renders THREE copies of the User Pools + M2M usage blocks in the
+# DOM — one per tier section — but only the active-tier copy is visible. We
+# rely on `first: true` to target the visible one (same pattern as v0.2.0 for
+# MAU / SAML federation users). Verified by inspecting offsetParent visibility
+# on calculator.aws at discovery time.
+#
+# Tier comparison (May 2026 wizard):
+#   Lite tier        → MAU, SAML/OIDC MAU, Advanced security features select,
+#                      M2M block
+#   Essentials tier  → MAU, SAML/OIDC MAU, M2M block        (no ASF select)
+#   Plus tier        → MAU, SAML/OIDC MAU, M2M block        (no ASF select)
+#
+# Plus and Essentials differ ONLY in per-MAU price (~$0.015 vs ~$0.0055), not
+# in visible form fields. The auth-heavy estimate impact is purely pricing-
+# driven; no extra inputs need surfacing for Plus.
 # =============================================================================
 
 service: cognito
-version: 0.2.0
+version: 0.3.0
 
 meta:
   name: Amazon Cognito
@@ -21,7 +35,9 @@ meta:
   category: security
   description: |
     Amazon Cognito user-pool pricing. Surfaces the Lite / Essentials / Plus
-    tier toggle, monthly active users (MAU) and SAML/OIDC federation users.
+    tier toggle, monthly active users (MAU), SAML/OIDC federation users,
+    Lite-only advanced security features toggle, and machine-to-machine
+    (M2M) token/app-client usage.
 
 fields:
   - id: region
@@ -34,7 +50,11 @@ fields:
   - id: tier
     type: enum
     default: lite
-    description: User-pool pricing tier. Lite is free up to 10k MAU; Essentials and Plus are metered per MAU.
+    description: |
+      User-pool pricing tier. Lite is free up to 10k MAU; Essentials (~$0.0055
+      per MAU) and Plus (~$0.015 per MAU) are metered. Plus bundles advanced
+      security features and threat protection — choose plus for auth-heavy
+      estimates that need anomaly detection / risk-based MFA priced in.
     options:
       - { value: lite, label: "Cognito Lite Tier", default: true }
       - { value: essentials, label: "Cognito Essentials Tier" }
@@ -59,16 +79,99 @@ fields:
     description: SAML or OIDC federation monthly active users.
     ui:
       kind: text
-      locator: { role: textbox, name_prefix: "SAML or OIDC federation" }
+      # Wizard label is "Number of monthly active users (MAU) who sign in
+      # through SAML or OIDC federation Enter the amount". Use a substring
+      # regex anchored on the distinguishing keyword.
+      locator: { role: textbox, first: true, name: { regex: "SAML or OIDC federation" } }
+
+  - id: advanced_security
+    type: enum
+    default: enabled
+    description: |
+      Advanced security features toggle. Lite-tier ONLY — the wizard hides
+      this control entirely for Essentials/Plus (those tiers bundle ASF in
+      their per-MAU price). Default matches the wizard default ("Enabled").
+      Ignored when tier != 'lite'.
+    options:
+      - { value: enabled, label: "Enabled", default: true }
+      - { value: disabled, label: "Disabled" }
+
+  - id: m2m_token_requests
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: |
+      Machine-to-machine (M2M) token requests per month. Tier-agnostic — the
+      M2M block has the same pricing across Lite/Essentials/Plus.
+    ui:
+      kind: text
+      locator: { role: textbox, first: true, name_prefix: "Number of token requests Enter" }
+
+  - id: m2m_app_clients
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    description: Number of M2M app clients.
+    ui:
+      kind: text
+      locator: { role: textbox, first: true, name_prefix: "Number of app clients Enter" }
+
+  - id: m2m_token_optimization_rate
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: |
+      Token-request optimization rate (% of token requests served from cache
+      / discount). Wizard default is 0. Spinbutton input.
+    ui:
+      kind: text
+      locator: { role: spinbutton, first: true, name: "Optimization Rate for Token Requests" }
+
+  - id: m2m_app_client_optimization_rate
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    description: App-client optimization rate (% discount). Wizard default 0.
+    ui:
+      kind: text
+      locator: { role: spinbutton, first: true, name: "Optimization Rate for App Clients" }
 
 flow:
   - apply: tier
+  - { action: wait_ms, ms: 800 }   # Tier switch re-renders the active usage block; let it settle before filling.
   - apply: mau
     when: "mau > 0"
   - apply: saml_mau
     when: "saml_mau > 0"
+
+  # Advanced security features — Lite tier only. Emit when caller explicitly
+  # wants to disable it (wizard default is "Enabled"); skip otherwise to
+  # avoid redundant clicks. Gated on tier == 'lite' because the control
+  # does not exist for Essentials/Plus.
+  - when: "tier == 'lite' && advanced_security == 'disabled'"
+    action: select_dropdown
+    trigger:
+      role: button
+      name: { regex: "^Advanced security features", flags: "i" }
+      first: true
+    option: "Disabled"
+    open_wait_ms: 800
+    settle_ms: 400
+
+  # M2M block — applies to all tiers. Each numeric paired implicitly with
+  # its sibling optimization-rate spinbutton; rate fills only when its
+  # baseline count is non-zero (filling a rate alone has no effect).
+  - apply: m2m_token_requests
+    when: "m2m_token_requests > 0"
+  - apply: m2m_token_optimization_rate
+    when: "m2m_token_requests > 0 && m2m_token_optimization_rate > 0"
+  - apply: m2m_app_clients
+    when: "m2m_app_clients > 0"
+  - apply: m2m_app_client_optimization_rate
+    when: "m2m_app_clients > 0 && m2m_app_client_optimization_rate > 0"
+
   - { action: press_key, key: "Tab" }
-  - { action: wait_ms, ms: 500 }
+  - { action: wait_ms, ms: 800 }
 
 health_locators:
   - { role: radio, name: "Cognito Lite Tier", label: "Lite tier radio" }
@@ -76,3 +179,5 @@ health_locators:
   - { role: radio, name: "Cognito Plus Tier", label: "Plus tier radio" }
   - { role: textbox, name: { regex: "Number of monthly active users \\(MAU\\) Enter" }, label: "MAU textbox" }
   - { role: textbox, name: { regex: "SAML or OIDC federation" }, label: "SAML/OIDC users textbox" }
+  - { role: textbox, name: { regex: "Number of token requests Enter" }, label: "M2M token requests textbox" }
+  - { role: textbox, name: { regex: "Number of app clients Enter" }, label: "M2M app clients textbox" }
