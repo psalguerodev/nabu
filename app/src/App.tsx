@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import "./App.css";
 import { loadSettings, saveSetting, type Settings } from "./settings";
 
-const TABS = ["Dashboard", "Jobs", "Services", "Updates", "Settings"] as const;
+const TABS = ["Jobs", "Services", "Updates", "Settings"] as const;
 type Tab = (typeof TABS)[number];
 
 const EYEBROW: Record<Tab, string> = {
-  Dashboard: "Overview",
   Jobs: "Estimate queue",
   Services: "AWS handlers",
   Updates: "Catalog distribution",
@@ -89,7 +89,7 @@ function useMcpStatus(): McpStatus {
 }
 
 export default function App() {
-  const [tab, setTab] = useState<Tab>("Dashboard");
+  const [tab, setTab] = useState<Tab>("Jobs");
   const status = useMcpStatus();
 
   return (
@@ -132,6 +132,89 @@ export default function App() {
         />
         <span>{renderStatus(status)}</span>
       </footer>
+
+      <ChromiumGate />
+    </div>
+  );
+}
+
+type ChromiumStatusJson = {
+  installed: boolean;
+  browsers_dir: string | null;
+  binary: string | null;
+};
+
+function ChromiumGate() {
+  const [status, setStatus] = useState<"checking" | "missing" | "installing" | "done" | "failed">("checking");
+  const [logs, setLogs] = useState<string[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    invoke<ChromiumStatusJson>("chromium_status")
+      .then((s) => setStatus(s.installed ? "done" : "missing"))
+      .catch((e) => {
+        setStatus("failed");
+        setError(String(e));
+      });
+  }, []);
+
+  useEffect(() => {
+    if (status !== "installing") return;
+    const unsubscribe = listen<string>("chromium-install-log", (event) => {
+      setLogs((prev) => [...prev.slice(-40), event.payload]);
+    });
+    return () => {
+      unsubscribe.then((fn) => fn()).catch(() => {});
+    };
+  }, [status]);
+
+  const install = async () => {
+    setStatus("installing");
+    setError(null);
+    setLogs([]);
+    try {
+      await invoke("chromium_install");
+      setStatus("done");
+    } catch (e) {
+      setStatus("failed");
+      setError(String(e));
+    }
+  };
+
+  if (status === "checking" || status === "done") return null;
+
+  return (
+    <div className="chromium-overlay">
+      <div className="chromium-card">
+        <div className="eyebrow">First-time setup</div>
+        <h2>Chromium browser required</h2>
+        <p>
+          Nabu drives calculator.aws through a headless Chromium. We need to
+          download it once (~170 MB). Stored in Playwright's per-user cache
+          and reused across runs.
+        </p>
+        {status === "missing" && (
+          <button className="primary" onClick={install}>
+            Download Chromium
+          </button>
+        )}
+        {status === "installing" && (
+          <>
+            <p className="muted">Downloading… the first 30 s often shows no output.</p>
+            <pre className="chromium-log">
+              {logs.length === 0 ? "starting…" : logs.join("\n")}
+            </pre>
+          </>
+        )}
+        {status === "failed" && (
+          <>
+            <p className="error">Install failed: {error}</p>
+            <button className="primary" onClick={install}>
+              Retry
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -141,11 +224,7 @@ function TabContent({ tab, status }: { tab: Tab; status: McpStatus }) {
   if (tab === "Settings") return <SettingsPanel />;
   if (tab === "Jobs") return <JobsPanel mcpUp={status.state === "up"} />;
   if (tab === "Updates") return <UpdatesPanel mcpUp={status.state === "up"} />;
-  return (
-    <section className="card">
-      <p className="placeholder">No content yet.</p>
-    </section>
-  );
+  return null;
 }
 
 function UpdatesPanel({ mcpUp }: { mcpUp: boolean }) {

@@ -84,6 +84,151 @@ fn spawn_mcp(db_path: &PathBuf, remote_dir: &PathBuf, bundle: Option<&BundleLayo
     }
 }
 
+// ---------------------------------------------------------------------------
+// Playwright Chromium first-run installer
+//
+// The runner needs a Chromium binary. Playwright caches it at:
+//   macOS:   ~/Library/Caches/ms-playwright/chromium-*/chrome-mac/Chromium.app
+//   Linux:   ~/.cache/ms-playwright/chromium-*/chrome-linux/chrome
+//   Windows: %USERPROFILE%\AppData\Local\ms-playwright\chromium-*\chrome-win\chrome.exe
+//
+// chromium_status returns whether any chromium-* dir exists with the
+// expected binary inside. chromium_install runs the Playwright CLI
+// (`bun runner-runtime/node_modules/playwright/cli.js install chromium`)
+// and streams stdout lines back as Tauri events so the UI can show
+// progress. Dev mode uses the system `npx playwright install chromium`.
+
+fn playwright_browsers_dir() -> Option<PathBuf> {
+    if let Ok(env) = std::env::var("PLAYWRIGHT_BROWSERS_PATH") {
+        if !env.is_empty() && env != "0" {
+            return Some(PathBuf::from(env));
+        }
+    }
+    let home = dirs::home_dir()?;
+    if cfg!(target_os = "macos") {
+        Some(home.join("Library/Caches/ms-playwright"))
+    } else if cfg!(target_os = "windows") {
+        Some(home.join("AppData/Local/ms-playwright"))
+    } else {
+        Some(home.join(".cache/ms-playwright"))
+    }
+}
+
+fn chromium_binary_path(browsers_dir: &Path) -> Option<PathBuf> {
+    let entries = fs::read_dir(browsers_dir).ok()?;
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if !name_str.starts_with("chromium-") || name_str.contains("headless_shell") {
+            continue;
+        }
+        let candidate = if cfg!(target_os = "macos") {
+            entry.path().join("chrome-mac/Chromium.app/Contents/MacOS/Chromium")
+        } else if cfg!(target_os = "windows") {
+            entry.path().join("chrome-win/chrome.exe")
+        } else {
+            entry.path().join("chrome-linux/chrome")
+        };
+        if candidate.exists() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+#[derive(Serialize)]
+struct ChromiumStatus {
+    installed: bool,
+    browsers_dir: Option<String>,
+    binary: Option<String>,
+}
+
+#[tauri::command]
+fn chromium_status() -> ChromiumStatus {
+    let browsers_dir = playwright_browsers_dir();
+    let binary = browsers_dir.as_ref().and_then(|d| chromium_binary_path(d));
+    ChromiumStatus {
+        installed: binary.is_some(),
+        browsers_dir: browsers_dir.as_ref().map(|p| p.to_string_lossy().to_string()),
+        binary: binary.as_ref().map(|p| p.to_string_lossy().to_string()),
+    }
+}
+
+#[tauri::command]
+async fn chromium_install(
+    app: tauri::AppHandle,
+    paths: tauri::State<'_, McpSpawnPaths>,
+) -> Result<bool, String> {
+    use std::io::{BufRead, BufReader};
+    use tauri::Emitter;
+
+    let bundle = paths.bundle.clone();
+    let (program, args, cwd): (PathBuf, Vec<String>, Option<PathBuf>) = match bundle {
+        Some(b) => {
+            // Packaged: $RES/bun $RES/runner-runtime/node_modules/playwright/cli.js install chromium
+            let cli = b
+                .runner_cwd
+                .join("node_modules/playwright/cli.js");
+            (
+                b.bun_binary,
+                vec![
+                    cli.to_string_lossy().to_string(),
+                    "install".into(),
+                    "chromium".into(),
+                ],
+                Some(b.runner_cwd),
+            )
+        }
+        None => {
+            // Dev: rely on system Node + the workspace's playwright.
+            (
+                PathBuf::from("npx"),
+                vec!["playwright".into(), "install".into(), "chromium".into()],
+                None,
+            )
+        }
+    };
+
+    let mut cmd = Command::new(&program);
+    cmd.args(&args).stdout(Stdio::piped()).stderr(Stdio::piped());
+    if let Some(dir) = cwd {
+        cmd.current_dir(dir);
+    }
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| format!("failed to spawn playwright install: {e}"))?;
+
+    if let Some(stdout) = child.stdout.take() {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            let reader = BufReader::new(stdout);
+            for line in reader.lines().flatten() {
+                let _ = app.emit("chromium-install-log", line);
+            }
+        });
+    }
+    if let Some(stderr) = child.stderr.take() {
+        let app = app.clone();
+        std::thread::spawn(move || {
+            let reader = BufReader::new(stderr);
+            for line in reader.lines().flatten() {
+                let _ = app.emit("chromium-install-log", line);
+            }
+        });
+    }
+
+    let status = child
+        .wait()
+        .map_err(|e| format!("playwright install failed: {e}"))?;
+    if !status.success() {
+        return Err(format!(
+            "playwright install exited with code {:?}",
+            status.code()
+        ));
+    }
+    Ok(true)
+}
+
 fn migrations() -> Vec<Migration> {
     vec![Migration {
         version: 1,
@@ -286,6 +431,8 @@ pub fn run() {
             claude_install,
             claude_uninstall,
             restart_mcp,
+            chromium_status,
+            chromium_install,
         ])
         .setup(|app| {
             let data_dir = app
