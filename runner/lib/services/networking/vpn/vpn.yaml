@@ -10,7 +10,7 @@
 # =============================================================================
 
 service: vpn
-version: 0.2.0
+version: 0.2.1
 
 meta:
   name: Amazon VPN (Site-to-Site)
@@ -20,6 +20,12 @@ meta:
   description: |
     Site-to-Site VPN connection pricing. The VPC wizard hosts the form;
     VPN Connection is enabled by default.
+
+    v0.2.1 — adds data transfer dimension (inbound / intra-region /
+    outbound GB or TB per month) via the VPC wizard's "Data Transfer"
+    sub-service checkbox. The sub-service is toggled on only when any
+    of the data transfer fields is non-zero. Outbound to the Internet
+    typically dominates VPN cost in hub-and-spoke architectures.
 
 fields:
   - id: region
@@ -47,6 +53,75 @@ fields:
       kind: number
       locator: { css: 'input[aria-label*="Average duration for each connection"]' }
 
+  # ---- Data Transfer sub-service (toggled on-demand) ---------------------
+  # The "Data Transfer" sub-service checkbox in the VPC wizard reveals 3
+  # value+unit rows. We toggle it on whenever any DT field > 0 via a
+  # `toggle_checkbox_data_id` step in the flow (the checkbox has no
+  # accessible name on the input; CloudScape wraps it in
+  # `[data-id="dataTransferVpc"]`). The Value inputs all share aria-label
+  # "Enter Amount Enter amount" so we disambiguate by DOM order:
+  # 0=inbound, 1=intra-region, 2=outbound.
+
+  - id: inbound_data_amount
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Inbound data transfer amount (in the unit selected by inbound_data_unit). Inbound from internet or other regions is currently $0/GB.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Enter Amount Enter amount", nth: 0 }
+
+  - id: inbound_data_unit
+    type: enum
+    default: tb_per_month
+    description: Unit for inbound_data_amount.
+    options:
+      - { value: gb_per_month, label: "GB per month" }
+      - { value: tb_per_month, label: "TB per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Inbound Data Transfer Data amount" } }
+
+  - id: intra_region_data_amount
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Intra-region data transfer amount (in the unit selected by intra_region_data_unit). Traffic between AZs in the same region routed via VPN endpoints.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Enter Amount Enter amount", nth: 1 }
+
+  - id: intra_region_data_unit
+    type: enum
+    default: tb_per_month
+    description: Unit for intra_region_data_amount.
+    options:
+      - { value: gb_per_month, label: "GB per month" }
+      - { value: tb_per_month, label: "TB per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Intra-Region Data Transfer Data amount" } }
+
+  - id: outbound_data_amount
+    type: number
+    default: 0
+    constraints: { min: 0 }
+    description: Outbound data transfer amount (in the unit selected by outbound_data_unit). Default destination is the Internet ($0.05–$0.09/GB); this dominates VPN cost in hub-and-spoke topologies.
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "Enter Amount Enter amount", nth: 2 }
+
+  - id: outbound_data_unit
+    type: enum
+    default: tb_per_month
+    description: Unit for outbound_data_amount.
+    options:
+      - { value: gb_per_month, label: "GB per month" }
+      - { value: tb_per_month, label: "TB per month", default: true }
+    ui:
+      kind: dropdown
+      locator: { role: button, name: { regex: "^Outbound Data Transfer Data amount" } }
+
 # The VPN wizard nests the connection fields below a sub-service toggle grid
 # that lazy-renders. Scroll past it before applying any field so the inputs
 # are mounted. Same prerequisite is reused by the daily health probe.
@@ -57,6 +132,35 @@ flow:
     when: "site_to_site_connections > 0"
   - apply: hours_per_day
     when: "hours_per_day != 24"
+
+  # Toggle the Data Transfer sub-service when any DT field is > 0.
+  # Native input.click() via toggle_checkbox_data_id bypasses the
+  # CloudScape span-intercepts-pointer-events bug that the role-based
+  # check_checkbox runs into for the provider/sub-service checkboxes.
+  - when: "inbound_data_amount > 0 || intra_region_data_amount > 0 || outbound_data_amount > 0"
+    action: toggle_checkbox_data_id
+    targets: { dataTransferVpc: true }
+
+  # Brief settle so the freshly-mounted DT rows are interactable.
+  - { action: wait_ms, ms: 600 }
+
+  # Inbound (Value + Unit always paired — wizard default is TB per month
+  # but we always re-click the unit when the value is set, mirroring the
+  # SES/Systems Manager pattern.)
+  - apply: inbound_data_amount
+    when: "inbound_data_amount > 0"
+  - apply: inbound_data_unit
+    when: "inbound_data_amount > 0"
+
+  - apply: intra_region_data_amount
+    when: "intra_region_data_amount > 0"
+  - apply: intra_region_data_unit
+    when: "intra_region_data_amount > 0"
+
+  - apply: outbound_data_amount
+    when: "outbound_data_amount > 0"
+  - apply: outbound_data_unit
+    when: "outbound_data_amount > 0"
 
 health_prerequisite_flow:
   - { action: scroll, dy: 600 }

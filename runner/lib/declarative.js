@@ -320,7 +320,13 @@ async function dispatchAction(page, step, ctx) {
       const loc = buildLocator(page, step);
       const want = step.value === undefined ? true : Boolean(step.value);
       const checked = await loc.isChecked().catch(() => false);
-      if (checked !== want) await loc.click();
+      if (checked !== want) {
+        // Some CloudScape checkbox variants wrap the native input in a span
+        // that intercepts pointer events (e.g. the Bedrock provider grid:
+        // `<span data-id="amazon" class="...prevented">` intercepts the
+        // click). Honour `force: true` on the step to bypass actionability.
+        await loc.click(step.force ? { force: true } : undefined);
+      }
       return;
     }
 

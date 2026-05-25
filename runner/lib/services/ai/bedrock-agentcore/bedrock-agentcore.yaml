@@ -33,7 +33,7 @@
 # =============================================================================
 
 service: bedrock-agentcore
-version: 0.2.1
+version: 0.2.2
 
 meta:
   name: Amazon Bedrock AgentCore
@@ -209,6 +209,17 @@ fields:
     visible_when: "enable_browser_tools == true"
     description: Browser Tools — average session duration (seconds). Shared label, see above.
 
+  - id: browser_session_io_wait_percent
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    visible_when: "enable_browser_tools == true"
+    description: |
+      Browser Tools — I/O wait percent. Shares the "I/O Wait Time (%) Enter %"
+      label with Code Interpreter; when both sections are enabled the wizard
+      renders two spinbuttons, BT being the second one. Driven by an explicit
+      fill with nth depending on whether Code Interpreter is enabled.
+
   - id: browser_session_vcpu
     type: number
     default: 1
@@ -254,10 +265,14 @@ fields:
     default: 0
     constraints: { min: 0, max: 100 }
     visible_when: "enable_code_interpreter == true"
-    description: Code Interpreter — I/O wait percent. Has a unique label suffix "Enter %".
+    description: |
+      Code Interpreter — I/O wait percent. Shares the "I/O Wait Time (%) Enter %"
+      label with the Browser Tools section when that's also enabled; we anchor
+      with first: true because Code Interpreter renders before Browser Tools in
+      the DOM.
     ui:
       kind: number
-      locator: { role: spinbutton, name: "I/O Wait Time (%) Enter %" }
+      locator: { role: spinbutton, name: "I/O Wait Time (%) Enter %", first: true }
 
   - id: code_interpreter_vcpu
     type: number
@@ -383,35 +398,108 @@ flow:
   - apply: browser_session_memory_gb
     when: "enable_browser_tools == true"
 
-  # BT sessions + duration share labels with Runtime (+ Gateway when on).
-  # btSessionsIdx = (enableGateway ? 1 : 0) + 1, i.e. 1 when Gateway off,
-  # 2 when Gateway on. Emit one variant per Gateway state.
-  - when: "enable_browser_tools == true && enable_gateway == false"
+  # BT I/O Wait shares the "I/O Wait Time (%) Enter %" label with CI.
+  # When only BT is on, the BT spinbutton is the first match.
+  # When CI + BT are both on, CI is first (nth=0) and BT is second (nth=1).
+  - when: "enable_browser_tools == true && enable_code_interpreter == false"
+    action: fill
+    role: spinbutton
+    name: "I/O Wait Time (%) Enter %"
+    first: true
+    value: "{browser_session_io_wait_percent}"
+  - when: "enable_browser_tools == true && enable_code_interpreter == true"
+    action: fill
+    role: spinbutton
+    name: "I/O Wait Time (%) Enter %"
+    nth: 1
+    value: "{browser_session_io_wait_percent}"
+
+  # BT sessions + duration share labels with Runtime, Gateway, Code
+  # Interpreter, and Memory. DOM order of sub-sections when enabled:
+  #   Runtime -> Gateway -> Code Interpreter -> Memory -> Observability ->
+  #   Browser Tools.
+  #
+  # Browser Tools sessions textbox nth:
+  #   nth = 1 + (gateway?1:0) + (code_interpreter?1:0) + (memory?1:0)
+  # (Runtime always contributes index 0; BT is always last among the
+  # session-bearing sub-sections, so its index is the count of sections
+  # preceding it that also have a sessions textbox.)
+  # 8 combinations of (gateway x code_interpreter x memory):
+  - when: "enable_browser_tools == true && enable_gateway == false && enable_code_interpreter == false && enable_memory == false"
     action: fill
     role: textbox
     name: { regex: "Number of agent sessions per month" }
     nth: 1
     value: "{browser_sessions_per_month}"
-
-  - when: "enable_browser_tools == true && enable_gateway == true"
+  - when: "enable_browser_tools == true && enable_gateway == true && enable_code_interpreter == false && enable_memory == false"
     action: fill
     role: textbox
     name: { regex: "Number of agent sessions per month" }
     nth: 2
     value: "{browser_sessions_per_month}"
+  - when: "enable_browser_tools == true && enable_gateway == false && enable_code_interpreter == true && enable_memory == false"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 2
+    value: "{browser_sessions_per_month}"
+  - when: "enable_browser_tools == true && enable_gateway == false && enable_code_interpreter == false && enable_memory == true"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 2
+    value: "{browser_sessions_per_month}"
+  - when: "enable_browser_tools == true && enable_gateway == true && enable_code_interpreter == true && enable_memory == false"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 3
+    value: "{browser_sessions_per_month}"
+  - when: "enable_browser_tools == true && enable_gateway == true && enable_code_interpreter == false && enable_memory == true"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 3
+    value: "{browser_sessions_per_month}"
+  - when: "enable_browser_tools == true && enable_gateway == false && enable_code_interpreter == true && enable_memory == true"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 3
+    value: "{browser_sessions_per_month}"
+  - when: "enable_browser_tools == true && enable_gateway == true && enable_code_interpreter == true && enable_memory == true"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 4
+    value: "{browser_sessions_per_month}"
 
-  - when: "enable_browser_tools == true && enable_gateway == false"
+  # Browser Tools duration textbox nth (Gateway has NO duration field):
+  #   nth = 1 + (code_interpreter?1:0) + (memory?1:0)
+  # 4 combinations of (code_interpreter x memory):
+  - when: "enable_browser_tools == true && enable_code_interpreter == false && enable_memory == false"
     action: fill
     role: textbox
     name: "Average Session Duration (seconds)"
     nth: 1
     value: "{browser_session_duration_sec}"
-
-  - when: "enable_browser_tools == true && enable_gateway == true"
+  - when: "enable_browser_tools == true && enable_code_interpreter == true && enable_memory == false"
     action: fill
     role: textbox
     name: "Average Session Duration (seconds)"
     nth: 2
+    value: "{browser_session_duration_sec}"
+  - when: "enable_browser_tools == true && enable_code_interpreter == false && enable_memory == true"
+    action: fill
+    role: textbox
+    name: "Average Session Duration (seconds)"
+    nth: 2
+    value: "{browser_session_duration_sec}"
+  - when: "enable_browser_tools == true && enable_code_interpreter == true && enable_memory == true"
+    action: fill
+    role: textbox
+    name: "Average Session Duration (seconds)"
+    nth: 3
     value: "{browser_session_duration_sec}"
 
   # ---- Code Interpreter fields ------------------------------------------

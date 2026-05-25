@@ -1,54 +1,91 @@
 # =============================================================================
-# Amazon Bedrock - service datasheet
+# Amazon Bedrock — service datasheet
 # =============================================================================
-# Migrated from imperative ai/bedrock/index.js (v0.1.2).
+# v0.3.0 — BREAKING rewrite for the redesigned Bedrock wizard.
 #
-# Foundation-model pricing. The wizard renders one "usage block" per enabled
-# provider (Amazon Nova by default, Anthropic optional). Each block contains
-# the same labelled controls: model picker + four token-volume textboxes.
+# The legacy form had one "model picker" dropdown per provider section. That
+# control is GONE. The new wizard replaces it with two per-provider dropdowns:
 #
-# ----- Locator notes / scope cuts -------------------------------------------
+#   "Select your inference route" / "Select the inference route"   →  inference_route
+#   "Select your inference type"  / "Select the inference type"    →  inference_type
 #
-# 1) Provider checkboxes have NO accessible name. The visible provider label
-#    ("Amazon" / "Anthropic") lives in a grandparent <span> with no
-#    aria-linkage, so `getByRole('checkbox', { name: ... })` returns nothing.
-#    Legacy walked from the text node to the nearest checkbox in a
-#    page.evaluate() block. The interpreter has no equivalent primitive, so
-#    we lean on Playwright's CSS engine extensions (`:near(:text(...))`),
-#    which buildLocator() supports via the `{ css: '...' }` shape. If a
-#    future wizard rev breaks `:near`, the fallback is to add a
-#    `toggle_checkbox_data_id` step or to extend the interpreter with a
-#    "text-anchored checkbox" primitive.
+# plus two new Yes/No dropdowns inside each provider's "Model Settings" panel:
 #
-# 2) `model` is a string, not an enum. The Bedrock catalog grows monthly
-#    (Anthropic Claude 4.5/4.6, Amazon Nova Micro/Lite/Pro/Premier, plus
-#    Long-Context variants), and the wizard's option text changes when AWS
-#    revises a model. We expose it as a free-form string and use a raw
-#    `select_dropdown` action with `option: "{model}"`. Caller must pass the
-#    EXACT wizard label (case-insensitive, anchored match) -- e.g.
-#    "Claude Sonnet 4.5". Legacy did a substring regex match; we tighten to
-#    exact match because the interpreter's select_dropdown anchors with
-#    ^...$. If a partial label is required, switch to a literal
-#    `select_dropdown` step with a hand-built `option:` value.
+#   "Do you want to estimate with image as input?"                 →  image_input
+#   "Do you want to estimate with prompt caching enabled?"         →  prompt_caching
 #
-# 3) Token-volume textboxes repeat once per enabled provider block. Legacy
-#    used `.first()` to target the active section. The interpreter's `fill`
-#    does NOT auto-`.first()`, so duplicate labels would throw a strict-mode
-#    violation. We always disable the secondary provider via check_checkbox,
-#    leaving exactly one usage block on screen at fill time.
+# The four token-volume textboxes survived unchanged.
 #
-# 4) The legacy "Generic" branch (passing any provider name we don't have a
-#    hard-coded case for) is dropped. Schema constrains provider to the two
-#    documented enums; unknown providers fail at schema validation rather
-#    than silently no-op.
+# ----- Per-provider asymmetries discovered in calculator.aws -----------------
 #
-# ----- Defaults ---------------------------------------------------------------
-# Legacy defaults: provider=Anthropic, model=null, requests_per_minute=0,
-# hours_per_day=24, input_tokens=1000, output_tokens=500. Preserved as-is.
+# 1) Label wording differs by provider section:
+#      Amazon, Meta, etc. → "Select your inference route/type ..."
+#      Anthropic          → "Select the inference route/type ..."
+#    We use a regex `^Select (your|the) inference route` to match either.
+#
+# 2) Inference route options vary per provider:
+#      Amazon:    "Geo Cross Region Inference", "In-Region"          (default GCR)
+#      Anthropic: "Global", "Geo Cross Region Inference", "In Region" (default Global)
+#    The YAML exposes the union as a free-form string (interpolated into a
+#    raw select_dropdown step) so the caller passes the exact wizard label
+#    matching their provider. Unknown values fail at click time with a clear
+#    Playwright option-not-found error.
+#
+# 3) Inference type options vary per provider:
+#      Amazon:    "On Demand - Standard", "On Demand - Priority",
+#                 "On Demand - Flex", "Batch"
+#      Anthropic: "On Demand - Standard", "Batch"
+#      Meta:      "On Demand - Standard", "Batch"
+#    Same free-form-string treatment as above.
+#
+# 4) Image input + prompt caching render as CloudScape select buttons whose
+#    accessible name is the FULL question text. Yes/No appear as listbox
+#    options. Treated here as booleans → mapped to "Yes" / "No" via a raw
+#    select_dropdown step (not the auto-emitted `checkbox` kind, because they
+#    aren't checkboxes in the DOM).
+#
+# 5) Disabled providers in the wizard today (greyed checkboxes): AI21 Labs,
+#    Cohere, LumaAI, StabilityAI. Schema omits them.
+#
+# ----- Locator notes ---------------------------------------------------------
+#
+# Provider checkboxes have no accessible name on the input itself, but the
+# CloudScape Checkbox component wraps the native input in a span carrying
+# a stable `data-id` attribute keyed by provider:
+#
+#   amazon, anthropic, deepseek, meta, mistral, openAi, qwen, twelveLabs,
+#   writer, ai21, cohere, lumaAi, stabilityAi  (note camelCase variants).
+#
+# We target `[data-id="<id>"] input[type="checkbox"]` — precise, single-
+# match, no geometric guessing. The legacy
+# `input[type="checkbox"]:not([disabled]):near(:text-is("..."))` locator
+# from v0.2.x is DROPPED because the new wizard's 9-column provider grid
+# puts neighbouring providers close enough that `:near("Amazon")`
+# resolved to both the Amazon AND DeepSeek inputs, triggering Playwright
+# strict-mode violations. role-based `getByRole('checkbox', name)` also
+# fails: it finds the input, but a sibling span with class `...prevented`
+# intercepts pointer events, so the click never lands.
+#
+# Going through the `data-id` wrapper is also resilient to label rename
+# (e.g. "OpenAI" vs "OpenAi") which has happened on this wizard before.
+#
+# ----- Single-provider scope cut --------------------------------------------
+#
+# Like v0.2.x, we model ONE active provider at a time. Each provider section
+# duplicates all 6 controls (route + type + 4 textboxes + 2 toggles), and the
+# interpreter's `fill` is strict-mode (no auto-`.first()`). We always flip
+# every other available provider OFF to leave exactly one usage block on
+# screen at fill time. Multi-provider estimates require multiple service
+# entries.
+#
+# ----- Defaults preserved ----------------------------------------------------
+# provider=Anthropic, requests_per_minute=0, hours_per_day=24,
+# input_tokens=1000, output_tokens=500. inference_route + inference_type
+# default to the wizard's first option for the default provider.
 # =============================================================================
 
 service: bedrock
-version: 0.2.1
+version: 0.3.0
 
 meta:
   name: Amazon Bedrock
@@ -56,9 +93,10 @@ meta:
   config_pattern: "Amazon Bedrock"
   category: ai
   description: |
-    Foundation-model pricing. Pick a provider (Amazon Nova vs Anthropic
-    Claude), optionally pick a specific model, then describe traffic via
-    requests/min, daily runtime hours, and input/output tokens per request.
+    Foundation-model pricing. Pick a provider, an inference route + type for
+    that provider, then describe traffic via requests/min, daily runtime
+    hours, and input/output tokens per request. Optional toggles for image
+    input and prompt caching.
 
 fields:
   - id: region
@@ -72,25 +110,62 @@ fields:
     type: enum
     default: Anthropic
     description: |
-      Foundation-model provider. Wizard default is Amazon (checked) with
-      Anthropic unchecked; YAML default is Anthropic, so we always flip
-      both checkboxes to land in the requested single-provider state.
+      Foundation-model provider. The wizard renders one usage block per
+      enabled provider; this datasheet activates exactly one block at a time
+      so the shared textbox labels stay strict-mode-safe. Disabled providers
+      (AI21 Labs, Cohere, LumaAI, StabilityAI) are omitted.
     options:
-      - { value: Amazon,    label: "Amazon" }
-      - { value: Anthropic, label: "Anthropic", default: true }
-    # No `ui:` block - provider drives two explicit check_checkbox steps
-    # below (Playwright CSS :near pseudo) rather than a single auto-emitted
-    # step, because the checkboxes have no accessible name.
+      - { value: Amazon,     label: "Amazon" }
+      - { value: Anthropic,  label: "Anthropic", default: true }
+      - { value: DeepSeek,   label: "DeepSeek" }
+      - { value: Meta,       label: "Meta" }
+      - { value: Mistral,    label: "Mistral" }
+      - { value: OpenAI,     label: "OpenAI" }
+      - { value: Qwen,       label: "Qwen" }
+      - { value: TwelveLabs, label: "TwelveLabs" }
+      - { value: Writer,     label: "Writer" }
+    # No `ui:` block — provider drives explicit check_checkbox steps below
+    # (Playwright CSS `:near` pseudo) rather than a single auto-emitted
+    # step, because each provider needs its own toggle line and we want to
+    # disable all the others in one pass.
 
-  - id: model
+  - id: inference_route
     type: string
     optional: true
     description: |
-      Exact wizard label of the model to select (case-insensitive). E.g.
-      "Claude Sonnet 4.5", "Nova Pro". Leave null to keep the wizard's
-      default selection. Driven by a raw select_dropdown action below.
-    # No `ui:` - the dropdown is driven via a single literal flow step that
-    # interpolates {model} into the option matcher.
+      Exact wizard label of the inference route to select (case-insensitive
+      anchored match). Provider-dependent options:
+        Amazon:    "Geo Cross Region Inference" | "In-Region"
+        Anthropic: "Global" | "Geo Cross Region Inference" | "In Region"
+      Leave null to keep the wizard default for the chosen provider
+      ("Geo Cross Region Inference" for Amazon, "Global" for Anthropic).
+
+  - id: inference_type
+    type: string
+    optional: true
+    description: |
+      Exact wizard label of the inference type (case-insensitive anchored
+      match). Provider-dependent options:
+        Amazon:    "On Demand - Standard" | "On Demand - Priority"
+                 | "On Demand - Flex" | "Batch"
+        Anthropic / Meta: "On Demand - Standard" | "Batch"
+      Leave null to keep the wizard default ("On Demand - Standard").
+
+  - id: image_input
+    type: boolean
+    default: false
+    description: |
+      Estimate with image as input. Renders as a Yes/No CloudScape select
+      (not a checkbox), so driven by a raw select_dropdown step that maps
+      true→"Yes", false→"No". Set this only when the chosen model actually
+      accepts image input — the wizard will silently ignore it otherwise.
+
+  - id: prompt_caching
+    type: boolean
+    default: false
+    description: |
+      Estimate with prompt caching enabled. Same Yes/No CloudScape select
+      pattern as image_input.
 
   - id: requests_per_minute
     type: number
@@ -130,46 +205,133 @@ fields:
 
 flow:
   # ----- Provider selection ------------------------------------------------
-  # The checkboxes have no accessible name; use Playwright's CSS `:near()`
-  # pseudo to find the checkbox closest to the visible provider label.
-  # check_checkbox is idempotent, so re-running with the same state is a
-  # no-op. We always flip BOTH so exactly one usage block remains rendered
-  # (avoids strict-mode locator collisions on the shared token textboxes).
+  # Activate exactly one provider checkbox; flip Amazon (the wizard's
+  # default-on provider) OFF when caller picked something else. Other
+  # non-default providers don't need an explicit "false" branch because
+  # they start unchecked and we only activate one at a time.
+  # check_checkbox is idempotent so re-running with the same desired
+  # state is a no-op. See header note for why we target the data-id
+  # wrapper rather than the input directly.
+  # `force: true`: the sibling span (`...prevented` class) intercepts
+  # pointer events so Playwright's actionability gate blocks the click;
+  # force-clicking bypasses it. The native input still receives the
+  # click via Playwright's input-dispatch path.
   - when: "provider == 'Amazon'"
     action: check_checkbox
-    css: 'input[type="checkbox"]:not([disabled]):near(:text-is("Amazon"))'
+    css: '[data-id="amazon"] input[type="checkbox"]'
     value: true
-  - when: "provider == 'Amazon'"
+    force: true
+  - when: "provider != 'Amazon'"
     action: check_checkbox
-    css: 'input[type="checkbox"]:not([disabled]):near(:text-is("Anthropic"))'
+    css: '[data-id="amazon"] input[type="checkbox"]'
     value: false
+    force: true
 
   - when: "provider == 'Anthropic'"
     action: check_checkbox
-    css: 'input[type="checkbox"]:not([disabled]):near(:text-is("Anthropic"))'
+    css: '[data-id="anthropic"] input[type="checkbox"]'
     value: true
-  - when: "provider == 'Anthropic'"
+    force: true
+
+  - when: "provider == 'DeepSeek'"
     action: check_checkbox
-    css: 'input[type="checkbox"]:not([disabled]):near(:text-is("Amazon"))'
-    value: false
+    css: '[data-id="deepseek"] input[type="checkbox"]'
+    value: true
+    force: true
+
+  - when: "provider == 'Meta'"
+    action: check_checkbox
+    css: '[data-id="meta"] input[type="checkbox"]'
+    value: true
+    force: true
+
+  - when: "provider == 'Mistral'"
+    action: check_checkbox
+    css: '[data-id="mistral"] input[type="checkbox"]'
+    value: true
+    force: true
+
+  - when: "provider == 'OpenAI'"
+    action: check_checkbox
+    css: '[data-id="openAi"] input[type="checkbox"]'
+    value: true
+    force: true
+
+  - when: "provider == 'Qwen'"
+    action: check_checkbox
+    css: '[data-id="qwen"] input[type="checkbox"]'
+    value: true
+    force: true
+
+  - when: "provider == 'TwelveLabs'"
+    action: check_checkbox
+    css: '[data-id="twelveLabs"] input[type="checkbox"]'
+    value: true
+    force: true
+
+  - when: "provider == 'Writer'"
+    action: check_checkbox
+    css: '[data-id="writer"] input[type="checkbox"]'
+    value: true
+    force: true
 
   - { action: wait_ms, ms: 1500 }
 
-  # ----- Model selection ---------------------------------------------------
-  # Raw select_dropdown so {model} can be interpolated. Button label is
-  # "Select Model" before a pick and "Selected Model: <name>" after, hence
-  # the regex trigger name.
-  - when: "model != null"
+  # ----- Inference route ---------------------------------------------------
+  # Trigger button text differs per provider section:
+  #   Amazon/Meta/... → "Select your inference route ..."
+  #   Anthropic        → "Select the inference route ..."
+  # Single regex covers both wordings. `first: true` because with only one
+  # provider active there is exactly one match anyway, but the flag keeps
+  # the locator strict-safe if a future rev leaves another section visible.
+  - when: "inference_route != null"
     action: select_dropdown
-    trigger: { role: button, name: { regex: "^(Select|Selected) Model", flags: "i" }, first: true }
-    option: "{model}"
-    open_wait_ms: 1200
-    settle_ms: 600
+    trigger:
+      role: button
+      name: { regex: "^Select (your|the) inference route", flags: "i" }
+      first: true
+    option: "{inference_route}"
+    open_wait_ms: 1000
+    settle_ms: 500
+
+  # ----- Inference type ----------------------------------------------------
+  - when: "inference_type != null"
+    action: select_dropdown
+    trigger:
+      role: button
+      name: { regex: "^Select (your|the) inference type", flags: "i" }
+      first: true
+    option: "{inference_type}"
+    open_wait_ms: 1000
+    settle_ms: 500
+
+  # ----- Image input toggle ------------------------------------------------
+  # Yes/No CloudScape select. Default wizard value is "No"; only emit when
+  # the caller wants "Yes" to avoid an unnecessary click.
+  - when: "image_input == true"
+    action: select_dropdown
+    trigger:
+      role: button
+      name: { regex: "^Do you want to estimate with image as input\\?", flags: "i" }
+      first: true
+    option: "Yes"
+    open_wait_ms: 800
+    settle_ms: 400
+
+  # ----- Prompt caching toggle --------------------------------------------
+  - when: "prompt_caching == true"
+    action: select_dropdown
+    trigger:
+      role: button
+      name: { regex: "^Do you want to estimate with prompt caching enabled\\?", flags: "i" }
+      first: true
+    option: "Yes"
+    open_wait_ms: 800
+    settle_ms: 400
 
   # ----- Traffic shape -----------------------------------------------------
-  # Each fill is guarded by `> 0` to mirror the legacy handler's skip-zero
-  # behavior. hours_per_day default is 24 (legacy), so always applied unless
-  # explicitly set to 0.
+  # Each fill guarded by `> 0` (legacy skip-zero behavior). hours_per_day
+  # default is 24, so always applied unless explicitly set to 0.
   - apply: requests_per_minute
     when: "requests_per_minute > 0"
   - apply: hours_per_day
@@ -180,17 +342,18 @@ flow:
     when: "output_tokens_per_request > 0"
 
   - { action: press_key, key: "Tab" }
-  # 3000ms: token-pricing recalc spans 5+ inputs and a model lookup; mirror
+  # 3000ms: token-pricing recalc spans 6+ inputs + route/type lookups; mirror
   # the recalc-heavy precedent (dynamodb / lambda) so total cost settles
   # before "Save and add service" fires.
   - { action: wait_ms, ms: 3000 }
 
 # Amazon is the wizard default with its usage block visible immediately, so
-# no health prerequisite is required: model button + the four token-volume
-# textboxes are all on screen at probe time. (Matches legacy: no
-# healthPrerequisite was defined.)
+# no health prerequisite is required: the inference-route + inference-type
+# buttons and the four token-volume textboxes are all on screen at probe
+# time.
 health_locators:
-  - { role: button,  name: { regex: "^(Select|Selected) Model", flags: "i" }, label: "model selection button" }
+  - { role: button,  name: { regex: "^Select (your|the) inference route", flags: "i" }, label: "inference route dropdown" }
+  - { role: button,  name: { regex: "^Select (your|the) inference type",  flags: "i" }, label: "inference type dropdown" }
   - { role: textbox, name: "Average requests per minute",       label: "requests per minute textbox" }
   - { role: textbox, name: "Hours per day at this rate",        label: "hours per day textbox" }
   - { role: textbox, name: "Average input tokens per request",  label: "input tokens textbox" }
