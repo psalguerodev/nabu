@@ -69,12 +69,18 @@ fields:
     default: x86_64
     description: Lambda architecture (on-demand section). Wizard default is x86; we only click the dropdown when arm64 is requested.
     options:
+      # Wizard listbox shows "x86" (doubled to "x86x86" in CloudScape's
+      # first-render trick) and just "Arm" (capitalized, NOT "arm64").
+      # option_prefix below covers both shapes.
       - { value: x86_64, label: "x86", default: true }
-      - { value: arm64, label: "arm64" }
+      - { value: arm64, label: "Arm" }
     ui:
       kind: dropdown
       # `first: true` pins to the on-demand section (PC / SnapStart repeat the field).
       locator: { role: button, name_prefix: "Architecture", first: true }
+      # CloudScape doubles the first-rendered option label ("x86x86");
+      # starts-with match resolves both that and the single-text "Arm".
+      option_prefix: true
 
   - id: invocations_per_month
     type: integer
@@ -330,7 +336,8 @@ flow:
       role: button
       name_prefix: "Architecture"
       nth: 1
-    option: "arm64"
+    option: "Arm"
+    option_prefix: true
     open_wait_ms: 500
     settle_ms: 300
 

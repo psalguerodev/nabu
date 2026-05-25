@@ -267,15 +267,22 @@ function compileFieldApplication(path, field, flowEntry) {
 
   switch (ui.kind) {
     case "dropdown": {
+      // `option_prefix` on the field's `ui` block opts each generated
+      // step into starts-with matching for CloudScape dropdowns whose
+      // first-selected option text comes through doubled (e.g.
+      // "arm64arm64", "GlobalGlobal"). See D16.
+      const optionPrefix = ui.option_prefix === true;
       for (const opt of field.options ?? []) {
         if (opt.unsupported) continue;
         const optWhen = `${id} == '${opt.value}'`;
-        steps.push({
+        const step = {
           when: andWhen(when, optWhen),
           action: "select_dropdown",
           trigger: normalizeLocator(ui.locator),
           option: opt.label,
-        });
+        };
+        if (optionPrefix) step.option_prefix = true;
+        steps.push(step);
       }
       return steps;
     }
