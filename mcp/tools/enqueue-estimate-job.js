@@ -27,6 +27,11 @@ export const definition = {
               description:
                 "Optional group name. Consecutive services sharing the same group are placed under the same calculator.aws group section.",
             },
+            description: {
+              type: "string",
+              description:
+                "Optional per-line description shown in the calculator.aws estimate (fills the wizard's 'Description - optional' textbox). Defaults to the service id when omitted.",
+            },
           },
           required: ["service", "params"],
         },
@@ -50,7 +55,7 @@ export async function handler(args) {
 
   const normalized = [];
   const errors = [];
-  for (const [i, { service, params, group }] of items.entries()) {
+  for (const [i, { service, params, group, description }] of items.entries()) {
     const entry = service && getCatalogEntry(service);
     if (!entry) {
       errors.push(
@@ -71,6 +76,7 @@ export async function handler(args) {
       service,
       params: parsed.data,
       ...(group ? { group } : {}),
+      ...(description ? { description } : {}),
     });
   }
   if (errors.length) {
@@ -116,6 +122,7 @@ function normalizeItems(args) {
       service: s.service,
       params: s.params,
       group: s.group,
+      description: s.description,
     }));
   }
   if (args?.service) {

@@ -112,6 +112,18 @@ export async function createEstimate(services, options = {}) {
         service: svc.service,
       });
 
+      // Fill the per-service "Description - optional" textbox so the
+      // line item in the calculator estimate is labelled. Falls back to
+      // the service id when the caller doesn't pass one. Best-effort:
+      // any failure here must not block the configure flow.
+      try {
+        const descText = svc.description ?? svc.service;
+        const descBox = page.getByRole("textbox", { name: "Description" });
+        if (await descBox.isVisible({ timeout: 1000 }).catch(() => false)) {
+          await descBox.fill(String(descText));
+        }
+      } catch {}
+
       if (svc.region) {
         await setRegion(page, svc.region);
       }

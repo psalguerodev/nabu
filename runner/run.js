@@ -98,7 +98,7 @@ async function main() {
   });
 
   const resolved = [];
-  for (const { service, params, handler_path, group } of services) {
+  for (const { service, params, handler_path, group, description } of services) {
     let mod;
     try {
       mod = await loadHandlerModule(service, handler_path);
@@ -112,6 +112,7 @@ async function main() {
       region: params?.region,
       handler: mod.handler,
       ...(group ? { group } : {}),
+      ...(description ? { description } : {}),
       ...camelConfig,
     });
   }
