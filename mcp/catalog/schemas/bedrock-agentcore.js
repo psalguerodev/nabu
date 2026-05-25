@@ -24,6 +24,14 @@ export const zodSchema = z
     browser_session_duration_sec: z.number().min(0).default(60).describe("Browser Tools — average session duration (seconds). Shared label, see above."),
     browser_session_vcpu: z.number().min(0).default(1).describe("Browser Tools — vCPU per browser session."),
     browser_session_memory_gb: z.number().min(0).default(2).describe("Browser Tools — memory per browser session (GB)."),
+    code_interpreter_sessions: z.number().int().min(0).default(0).describe("Code Interpreter — number of agent sessions per month. Shares its"),
+    code_interpreter_duration_sec: z.number().min(0).default(60).describe("Code Interpreter — average session duration (seconds). Shares its"),
+    code_interpreter_io_wait_percent: z.number().min(0).max(100).default(0).describe("Code Interpreter — I/O wait percent. Has a unique label suffix \"Enter %\"."),
+    code_interpreter_vcpu: z.number().min(0).default(0.5).describe("Code Interpreter — vCPU per session."),
+    code_interpreter_memory_gb: z.number().min(0).default(1).describe("Code Interpreter — memory per session (GB)."),
+    memory_sessions: z.number().int().min(0).default(0).describe("Memory — number of agent sessions per month. Shares its label with"),
+    memory_turns_per_session: z.number().int().min(0).default(5).describe("Memory — average number of turns per session (real time)."),
+    memory_duration_sec: z.number().min(0).default(180).describe("Memory — average session duration (seconds). Shares its label with"),
     observability_logs_gb: z.number().min(0).default(0).describe("Observability — vended logs ingested (GB)."),
     observability_spans_gb: z.number().min(0).default(0).describe("Observability — spans ingested (GB).")
   })

@@ -33,7 +33,7 @@
 # =============================================================================
 
 service: bedrock-agentcore
-version: 0.2.0
+version: 0.2.1
 
 meta:
   name: Amazon Bedrock AgentCore
@@ -229,6 +229,87 @@ fields:
       kind: text
       locator: { role: textbox, name: "Memory per Browser Session (GB)", first: true }
 
+  # ---- Code Interpreter sub-service inputs ------------------------------
+  - id: code_interpreter_sessions
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "enable_code_interpreter == true"
+    description: |
+      Code Interpreter — number of agent sessions per month. Shares its
+      accessible name with Runtime + Gateway sessions; driven by an
+      explicit fill with nth computed from (gateway).
+
+  - id: code_interpreter_duration_sec
+    type: number
+    default: 60
+    constraints: { min: 0 }
+    visible_when: "enable_code_interpreter == true"
+    description: |
+      Code Interpreter — average session duration (seconds). Shares its
+      label with Runtime duration; driven by an explicit fill at nth=1.
+
+  - id: code_interpreter_io_wait_percent
+    type: number
+    default: 0
+    constraints: { min: 0, max: 100 }
+    visible_when: "enable_code_interpreter == true"
+    description: Code Interpreter — I/O wait percent. Has a unique label suffix "Enter %".
+    ui:
+      kind: number
+      locator: { role: spinbutton, name: "I/O Wait Time (%) Enter %" }
+
+  - id: code_interpreter_vcpu
+    type: number
+    default: 0.5
+    constraints: { min: 0 }
+    visible_when: "enable_code_interpreter == true"
+    description: Code Interpreter — vCPU per session.
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "vCPU per Code Interpreter Session" } }
+
+  - id: code_interpreter_memory_gb
+    type: number
+    default: 1
+    constraints: { min: 0 }
+    visible_when: "enable_code_interpreter == true"
+    description: Code Interpreter — memory per session (GB).
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Memory per Code Interpreter Session" } }
+
+  # ---- Memory sub-service inputs ----------------------------------------
+  - id: memory_sessions
+    type: integer
+    default: 0
+    constraints: { min: 0 }
+    visible_when: "enable_memory == true"
+    description: |
+      Memory — number of agent sessions per month. Shares its label with
+      Runtime + Gateway + Code Interpreter sessions; driven by an
+      explicit fill with nth computed from (gateway, code_interpreter).
+
+  - id: memory_turns_per_session
+    type: integer
+    default: 5
+    constraints: { min: 0 }
+    visible_when: "enable_memory == true"
+    description: Memory — average number of turns per session (real time).
+    ui:
+      kind: text
+      locator: { role: textbox, name: { regex: "Average number of turns per session" } }
+
+  - id: memory_duration_sec
+    type: number
+    default: 180
+    constraints: { min: 0 }
+    visible_when: "enable_memory == true"
+    description: |
+      Memory — average session duration (seconds). Shares its label with
+      Runtime + Code Interpreter duration; driven by an explicit fill
+      with nth computed from (code_interpreter).
+
   # ---- Observability sub-service inputs ---------------------------------
   - id: observability_logs_gb
     type: number
@@ -332,6 +413,83 @@ flow:
     name: "Average Session Duration (seconds)"
     nth: 2
     value: "{browser_session_duration_sec}"
+
+  # ---- Code Interpreter fields ------------------------------------------
+  # Sessions: nth = 1 (no Gateway) or 2 (Gateway on). Always > 0 when CI is enabled
+  # because the wizard rejects empty values.
+  - when: "enable_code_interpreter == true && enable_gateway == false"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 1
+    value: "{code_interpreter_sessions}"
+  - when: "enable_code_interpreter == true && enable_gateway == true"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 2
+    value: "{code_interpreter_sessions}"
+
+  # Duration: nth=1 always (only Runtime duration is before CI).
+  - when: "enable_code_interpreter == true"
+    action: fill
+    role: textbox
+    name: { regex: "Average Session Duration" }
+    nth: 1
+    value: "{code_interpreter_duration_sec}"
+
+  # I/O wait, vCPU, memory have unique labels.
+  - apply: code_interpreter_io_wait_percent
+    when: "enable_code_interpreter == true"
+  - apply: code_interpreter_vcpu
+    when: "enable_code_interpreter == true"
+  - apply: code_interpreter_memory_gb
+    when: "enable_code_interpreter == true"
+
+  # ---- Memory fields ----------------------------------------------------
+  # Sessions: nth = 1 + (gateway?1:0) + (ci?1:0). 4 variants.
+  - when: "enable_memory == true && enable_gateway == false && enable_code_interpreter == false"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 1
+    value: "{memory_sessions}"
+  - when: "enable_memory == true && enable_gateway == true && enable_code_interpreter == false"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 2
+    value: "{memory_sessions}"
+  - when: "enable_memory == true && enable_gateway == false && enable_code_interpreter == true"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 2
+    value: "{memory_sessions}"
+  - when: "enable_memory == true && enable_gateway == true && enable_code_interpreter == true"
+    action: fill
+    role: textbox
+    name: { regex: "Number of agent sessions per month" }
+    nth: 3
+    value: "{memory_sessions}"
+
+  # Turns has a unique label.
+  - apply: memory_turns_per_session
+    when: "enable_memory == true"
+
+  # Duration: nth = 1 (no CI) or 2 (CI on).
+  - when: "enable_memory == true && enable_code_interpreter == false"
+    action: fill
+    role: textbox
+    name: { regex: "Average Session Duration" }
+    nth: 1
+    value: "{memory_duration_sec}"
+  - when: "enable_memory == true && enable_code_interpreter == true"
+    action: fill
+    role: textbox
+    name: { regex: "Average Session Duration" }
+    nth: 2
+    value: "{memory_duration_sec}"
 
   # ---- Observability fields ---------------------------------------------
   - apply: observability_logs_gb
