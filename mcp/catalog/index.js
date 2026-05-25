@@ -30,13 +30,31 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { verify } from "../sign/index.js";
 import { NABU_PUBKEY_HEX } from "../sign/pubkey.js";
+// Static imports so Bun's --compile bundles them into the binary.
+// At runtime the loader will use these directly instead of doing a
+// dynamicImport() that would chase a non-existent /$bunfs/root path.
+import * as datasheetModule from "../../runner/lib/datasheet.js";
+import { SERVICE_PATHS as STATIC_SERVICE_PATHS } from "../../runner/lib/services/registry.js";
+import { EMBEDDED_SCHEMAS } from "./schemas-bundle.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, "..", "..");
 
-const EMBEDDED_CATALOG_FILE = join(HERE, "catalog.json");
-const EMBEDDED_SCHEMAS_DIR = HERE;
-const EMBEDDED_HANDLERS_DIR = join(REPO, "runner", "lib", "services");
+// When packaged with Bun's --compile, the embedded JS lives at
+// /$bunfs/root/ and the data files (catalog.json, schemas, runner/) are
+// NOT bundled. Tauri sets NABU_EMBEDDED_DIR to the app's resource dir
+// (which contains the data files) when running the packaged binary.
+// Local dev resolves both via __dirname relative to mcp/catalog/.
+const EMBEDDED_DIR = process.env.NABU_EMBEDDED_DIR || null;
+const EMBEDDED_CATALOG_FILE = EMBEDDED_DIR
+  ? join(EMBEDDED_DIR, "catalog", "catalog.json")
+  : join(HERE, "catalog.json");
+const EMBEDDED_SCHEMAS_DIR = EMBEDDED_DIR
+  ? join(EMBEDDED_DIR, "catalog")
+  : HERE;
+const EMBEDDED_HANDLERS_DIR = EMBEDDED_DIR
+  ? join(EMBEDDED_DIR, "services")
+  : join(REPO, "runner", "lib", "services");
 
 function resolveRemoteDir() {
   // Opt-in: NABU_REMOTE_CATALOG_DIR must be set explicitly. Tauri points
@@ -59,9 +77,7 @@ async function dynamicImport(absPath) {
 // datasheet, importing whichever exists. YAML-driven services have no
 // wrapper module; we build the handler module in memory via datasheet.js.
 async function loadHandlerForFolder(folderAbs) {
-  const { resolveHandlerSource, loadHandlerFromYaml } = await dynamicImport(
-    join(REPO, "runner", "lib", "datasheet.js"),
-  );
+  const { resolveHandlerSource, loadHandlerFromYaml } = datasheetModule;
   const src = resolveHandlerSource(folderAbs);
   if (!src) {
     throw new Error(
@@ -76,9 +92,7 @@ async function loadHandlerForFolder(folderAbs) {
 
 async function loadEmbedded() {
   const manifest = JSON.parse(readFileSync(EMBEDDED_CATALOG_FILE, "utf8"));
-  const { SERVICE_PATHS } = await dynamicImport(
-    join(EMBEDDED_HANDLERS_DIR, "registry.js"),
-  );
+  const SERVICE_PATHS = STATIC_SERVICE_PATHS;
   const entries = [];
   for (const [name, meta] of Object.entries(manifest.services)) {
     const schemaPath = join(EMBEDDED_SCHEMAS_DIR, meta.schema_ref);
@@ -88,8 +102,14 @@ async function loadEmbedded() {
       continue;
     }
     const folderAbs = join(EMBEDDED_HANDLERS_DIR, sub);
+    // Prefer the statically-bundled schema (works inside the Bun-compiled
+    // binary where dynamicImport can't reach external JS); fall back to
+    // dynamicImport for unusual cases.
+    const schemaModPromise = EMBEDDED_SCHEMAS[name]
+      ? Promise.resolve(EMBEDDED_SCHEMAS[name])
+      : dynamicImport(schemaPath);
     const [schemaMod, loaded] = await Promise.all([
-      dynamicImport(schemaPath),
+      schemaModPromise,
       loadHandlerForFolder(folderAbs),
     ]);
     const handlerMod = loaded.mod;

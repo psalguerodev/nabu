@@ -1,16 +1,11 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const PKG = JSON.parse(
-  readFileSync(
-    join(dirname(fileURLToPath(import.meta.url)), "..", "package.json"),
-    "utf8",
-  ),
-);
+// Importing package.json as JSON works under both Node (with the
+// import-attribute syntax) and Bun. Bun's --compile bundles the JSON
+// payload into the binary, avoiding the previous readFileSync that
+// chased a non-existent /$bunfs/package.json at runtime.
+import pkg from "../package.json" with { type: "json" };
 
 export const SERVER_NAME = "nabu";
-export const SERVER_VERSION = PKG.version;
+export const SERVER_VERSION = pkg.version;
 
 export const definition = {
   name: "get_version",

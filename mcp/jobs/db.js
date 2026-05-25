@@ -1,4 +1,13 @@
-import { DatabaseSync } from "node:sqlite";
+// Cross-runtime SQLite: prefer Bun's bun:sqlite when running inside a
+// Bun-compiled binary, otherwise use Node's node:sqlite (Node 22.5+).
+// Both expose the same prepare(sql).run/get/all + exec() shape we use.
+const isBun = typeof globalThis.Bun !== "undefined";
+let DatabaseImpl;
+if (isBun) {
+  ({ Database: DatabaseImpl } = await import("bun:sqlite"));
+} else {
+  ({ DatabaseSync: DatabaseImpl } = await import("node:sqlite"));
+}
 
 const DB_PATH = process.env.NABU_DB_PATH || ":memory:";
 
@@ -34,7 +43,7 @@ CREATE TABLE IF NOT EXISTS job_results (
 );
 `;
 
-export const db = new DatabaseSync(DB_PATH);
+export const db = new DatabaseImpl(DB_PATH);
 db.exec(SCHEMA);
 try {
   db.exec("ALTER TABLE jobs ADD COLUMN name TEXT");

@@ -8,9 +8,15 @@ const STUB_DURATION_MS = Number(process.env.NABU_STUB_DURATION_MS ?? 5000);
 const EXECUTOR_MODE = process.env.NABU_EXECUTOR ?? "real";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+// In packaged mode Tauri ships a Bun-compiled `nabu-runner` binary; the
+// path is passed via NABU_RUNNER_PATH and we exec it directly (no node).
+// In dev we keep spawning the runner JS via node so hot edits work.
 const RUNNER_PATH = process.env.NABU_RUNNER_PATH
   ? process.env.NABU_RUNNER_PATH
   : join(HERE, "..", "..", "runner", "run.js");
+const RUNNER_IS_BINARY = process.env.NABU_RUNNER_PATH
+  ? !RUNNER_PATH.endsWith(".js") && !RUNNER_PATH.endsWith(".mjs")
+  : false;
 
 export function run(jobId) {
   if (EXECUTOR_MODE === "stub") return runStub(jobId);
@@ -56,9 +62,11 @@ export function runReal(jobId) {
   setStatus(jobId, "running");
   addLog(jobId, "info", `spawning runner: ${RUNNER_PATH}`);
 
-  const child = spawn(process.execPath, [RUNNER_PATH], {
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+  const child = RUNNER_IS_BINARY
+    ? spawn(RUNNER_PATH, [], { stdio: ["pipe", "pipe", "pipe"] })
+    : spawn(process.execPath, [RUNNER_PATH], {
+        stdio: ["pipe", "pipe", "pipe"],
+      });
 
   const rawServices = job.params?.services
     ? job.params.services

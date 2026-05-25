@@ -24,7 +24,12 @@ import {
 } from "./lib/datasheet.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const SERVICES_DIR = join(HERE, "lib", "services");
+// In packaged mode (Tauri sets NABU_EMBEDDED_DIR to the resource dir
+// shipped alongside the binary), the YAML datasheets + registry live
+// at <embedded>/services. In dev we resolve relative to this file.
+const SERVICES_DIR = process.env.NABU_EMBEDDED_DIR
+  ? join(process.env.NABU_EMBEDDED_DIR, "services")
+  : join(HERE, "lib", "services");
 
 function emit(event) {
   process.stdout.write(JSON.stringify(event) + "\n");

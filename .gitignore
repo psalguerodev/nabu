@@ -22,3 +22,5 @@ local-catalog/
 # Editor
 .vscode/
 .idea/
+mcp/dist/bin/
+.bun-build
