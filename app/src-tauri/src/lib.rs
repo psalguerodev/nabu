@@ -8,7 +8,7 @@ use tauri::Manager;
 use tauri_plugin_sql::{Migration, MigrationKind};
 
 const MCP_SERVER_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../mcp/server.js");
-const BRIDGE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../bridge/bridge.js");
+const BRIDGE_DEV_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../bridge/bridge.js");
 const MCP_PORT: u16 = 7531;
 const DB_FILE: &str = "nabu.db";
 const SETTINGS_DB_URL: &str = "sqlite:nabu.db";
@@ -28,6 +28,7 @@ struct McpSpawnPaths {
 #[derive(Clone)]
 struct BundleLayout {
     mcp_binary: PathBuf,      // resources/nabu-mcp[.exe]
+    bridge_binary: PathBuf,   // resources/nabu-bridge[.exe]
     bun_binary: PathBuf,      // resources/bun[.exe]
     embedded_dir: PathBuf,    // resources/embedded
     runner_script: PathBuf,   // resources/runner-runtime/run.js
@@ -35,23 +36,32 @@ struct BundleLayout {
 }
 
 fn detect_bundle(resource_dir: Option<&PathBuf>) -> Option<BundleLayout> {
-    let dir = resource_dir?;
+    let base = resource_dir?;
+    // Tauri's bundle.resources glob "resources/**/*" preserves the
+    // "resources/" prefix, so artefacts land at
+    // Nabu.app/Contents/Resources/resources/{nabu-mcp,bun,...} on macOS
+    // (and the equivalent on the other platforms). Fall back to <base>
+    // directly if a future config drops the prefix.
+    let candidates = [base.join("resources"), base.clone()];
     let exe_suffix = if cfg!(windows) { ".exe" } else { "" };
-    let mcp = dir.join(format!("nabu-mcp{exe_suffix}"));
-    let bun = dir.join(format!("bun{exe_suffix}"));
-    let runner = dir.join("runner-runtime").join("run.js");
-    let embedded = dir.join("embedded");
-    if mcp.exists() && bun.exists() && runner.exists() && embedded.exists() {
-        Some(BundleLayout {
-            mcp_binary: mcp,
-            bun_binary: bun,
-            embedded_dir: embedded,
-            runner_cwd: dir.join("runner-runtime"),
-            runner_script: runner,
-        })
-    } else {
-        None
+    for dir in candidates.iter() {
+        let mcp = dir.join(format!("nabu-mcp{exe_suffix}"));
+        let bridge = dir.join(format!("nabu-bridge{exe_suffix}"));
+        let bun = dir.join(format!("bun{exe_suffix}"));
+        let runner = dir.join("runner-runtime").join("run.js");
+        let embedded = dir.join("embedded");
+        if mcp.exists() && bun.exists() && runner.exists() && embedded.exists() {
+            return Some(BundleLayout {
+                mcp_binary: mcp,
+                bridge_binary: bridge,
+                bun_binary: bun,
+                embedded_dir: embedded,
+                runner_cwd: dir.join("runner-runtime"),
+                runner_script: runner,
+            });
+        }
     }
+    None
 }
 
 fn spawn_mcp(db_path: &PathBuf, remote_dir: &PathBuf, bundle: Option<&BundleLayout>) -> std::io::Result<Child> {
@@ -311,15 +321,30 @@ fn read_config(path: &Path) -> Result<Value, String> {
     serde_json::from_str(&raw).map_err(|e| format!("invalid JSON in {}: {}", path.display(), e))
 }
 
-fn nabu_entry() -> Value {
-    json!({
-        "command": "node",
-        "args": [BRIDGE_PATH],
-    })
+fn nabu_entry(bundle: Option<&BundleLayout>) -> Value {
+    match bundle {
+        Some(b) if b.bridge_binary.exists() => json!({
+            "command": b.bridge_binary.to_string_lossy(),
+            "args": [],
+        }),
+        _ => json!({
+            "command": "node",
+            "args": [BRIDGE_DEV_PATH],
+        }),
+    }
+}
+
+fn bridge_path_str(bundle: Option<&BundleLayout>) -> String {
+    match bundle {
+        Some(b) if b.bridge_binary.exists() => b.bridge_binary.to_string_lossy().to_string(),
+        _ => BRIDGE_DEV_PATH.to_string(),
+    }
 }
 
 #[tauri::command]
-fn claude_config_status() -> Result<ClaudeConfigStatus, String> {
+fn claude_config_status(
+    paths: tauri::State<'_, McpSpawnPaths>,
+) -> Result<ClaudeConfigStatus, String> {
     let path = claude_config_path()?;
     let exists = path.exists();
     let config = if exists {
@@ -331,13 +356,14 @@ fn claude_config_status() -> Result<ClaudeConfigStatus, String> {
         .get("mcpServers")
         .and_then(|m| m.get("nabu"))
         .cloned();
-    let desired = nabu_entry();
+    let bundle = paths.bundle.as_ref();
+    let desired = nabu_entry(bundle);
     let installed = current.as_ref() == Some(&desired);
     Ok(ClaudeConfigStatus {
         os: os_label().to_string(),
         config_path: path.display().to_string(),
         config_exists: exists,
-        bridge_path: BRIDGE_PATH.to_string(),
+        bridge_path: bridge_path_str(bundle),
         installed,
         current_entry: current,
     })
@@ -348,7 +374,9 @@ fn claude_config_status() -> Result<ClaudeConfigStatus, String> {
 struct InstallArgs {}
 
 #[tauri::command]
-fn claude_install() -> Result<ClaudeConfigStatus, String> {
+fn claude_install(
+    paths: tauri::State<'_, McpSpawnPaths>,
+) -> Result<ClaudeConfigStatus, String> {
     let path = claude_config_path()?;
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
@@ -373,19 +401,21 @@ fn claude_install() -> Result<ClaudeConfigStatus, String> {
     let servers_obj = servers
         .as_object_mut()
         .ok_or_else(|| "mcpServers is not an object".to_string())?;
-    servers_obj.insert("nabu".to_string(), nabu_entry());
+    servers_obj.insert("nabu".to_string(), nabu_entry(paths.bundle.as_ref()));
 
     let serialized = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
     fs::write(&path, serialized).map_err(|e| e.to_string())?;
 
-    claude_config_status()
+    claude_config_status(paths)
 }
 
 #[tauri::command]
-fn claude_uninstall() -> Result<ClaudeConfigStatus, String> {
+fn claude_uninstall(
+    paths: tauri::State<'_, McpSpawnPaths>,
+) -> Result<ClaudeConfigStatus, String> {
     let path = claude_config_path()?;
     if !path.exists() {
-        return claude_config_status();
+        return claude_config_status(paths);
     }
     let mut config = read_config(&path)?;
     if let Some(servers) = config
@@ -397,7 +427,7 @@ fn claude_uninstall() -> Result<ClaudeConfigStatus, String> {
     }
     let serialized = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
     fs::write(&path, serialized).map_err(|e| e.to_string())?;
-    claude_config_status()
+    claude_config_status(paths)
 }
 
 #[tauri::command]

@@ -19,7 +19,7 @@
  * windows-x64). Default is the host platform.
  */
 import { execFileSync } from "node:child_process";
-import { cpSync, mkdirSync, readdirSync, rmSync, statSync } from "node:fs";
+import { copyFileSync, cpSync, lstatSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -40,6 +40,7 @@ function detectTarget() {
 const TARGET = detectTarget();
 const IS_WIN = TARGET.startsWith("windows");
 const MCP_BIN = IS_WIN ? "nabu-mcp.exe" : "nabu-mcp";
+const BRIDGE_BIN = IS_WIN ? "nabu-bridge.exe" : "nabu-bridge";
 const BUN_BIN = IS_WIN ? "bun.exe" : "bun";
 
 function step(msg) { process.stdout.write(`==> ${msg}\n`); }
@@ -53,7 +54,7 @@ step(`cleaning ${RES}`);
 rmSync(RES, { recursive: true, force: true });
 mkdirSync(RES, { recursive: true });
 
-// 2. Bun-compile the MCP binary
+// 2. Bun-compile the MCP binary + the Claude Desktop bridge.
 step("bun build --compile mcp/server.js");
 const mcpOut = join(RES, MCP_BIN);
 execFile("bun", [
@@ -61,24 +62,69 @@ execFile("bun", [
   "--compile", `--target=bun-${TARGET}`,
   `--outfile=${mcpOut}`,
 ]);
+step("bun build --compile bridge/bridge.js");
+execFile("bun", [
+  "build", "bridge/bridge.js",
+  "--compile", `--target=bun-${TARGET}`,
+  `--outfile=${join(RES, BRIDGE_BIN)}`,
+]);
 
-// 3. Copy Bun runtime binary (spawns the runner JS at job time)
+// 3. Copy Bun runtime binary (spawns the runner JS at job time).
+// Use realpath + copyFileSync to copy the actual binary content,
+// not a symlink — homebrew installs bun as a symlink so cpSync
+// without dereferencing leaves a dangling reference inside the
+// Tauri resource dir.
 step(`copying bun runtime`);
-const bunExe = process.execPath.endsWith(IS_WIN ? "bun.exe" : "bun")
+const bunCandidate = process.execPath.endsWith(IS_WIN ? "bun.exe" : "bun")
   ? process.execPath
   : execFileSync(IS_WIN ? "where" : "which", ["bun"]).toString().trim().split("\n")[0];
-cpSync(bunExe, join(RES, BUN_BIN));
-if (!IS_WIN) execFile("chmod", ["+x", join(RES, BUN_BIN)]);
+const bunExe = realpathSync(bunCandidate);
+copyFileSync(bunExe, join(RES, BUN_BIN));
+// Homebrew installs bun as a read-only 555 file; copyFileSync inherits
+// those perms. Tauri's bundle phase later wants to copy this into the
+// bundle output and fails with "Permission denied" if the dest needs
+// to be overwritten. 755 keeps it executable while letting the user
+// rewrite it on re-runs.
+if (!IS_WIN) execFile("chmod", ["755", join(RES, BUN_BIN)]);
+// Strip `com.apple.provenance` xattr — macOS Sequoia/Tahoe SIP marker
+// inherited from /opt/homebrew/. The xattr makes Tauri's resource
+// reader fail with "Permission denied" during cargo build. Targeted
+// delete on the bun copy (recursive clear via `-rc` is silently
+// ignored for SIP-marked attributes).
+if (process.platform === "darwin") {
+  try { execFile("xattr", ["-d", "com.apple.provenance", join(RES, BUN_BIN)]); } catch {}
+}
 
-// 4 + 5. Runner runtime tree — use `pnpm deploy` to materialise a
-// self-contained directory (node_modules + package.json) for the
-// runner workspace, then copy the runner source files INTO it so
-// node_modules resolution works without surgery. Bun is invoked with
-// cwd=runner-runtime and args=run.js by the host app.
-step("staging runner-runtime/ via pnpm deploy");
+// 4 + 5. Runner runtime tree — build a SELF-CONTAINED directory with
+// a flat node_modules. pnpm deploy was the obvious choice but it
+// leaves symlinks (@arkho/nabu-runner -> ../../../../../../../../runner,
+// + .pnpm/* relative links) that escape the resources tree, which
+// makes Tauri's resource walker fail with "Permission denied" during
+// `cargo build`. We use plain `npm install --omit=dev` instead so
+// node_modules is real directories with no symlinks.
+step("staging runner-runtime/ via npm install --omit=dev");
 const runtimeDir = join(RES, "runner-runtime");
 rmSync(runtimeDir, { recursive: true, force: true });
-execFile("pnpm", ["deploy", "--filter", "./runner", "--prod", "--legacy", runtimeDir]);
+mkdirSync(runtimeDir, { recursive: true });
+// Compose a temporary package.json that only references the runtime
+// deps the runner needs (no devDeps, no workspace links).
+const runnerPkg = JSON.parse(
+  readFileSync(join(REPO, "runner", "package.json"), "utf8"),
+);
+const trimmedPkg = {
+  name: "nabu-runner-runtime",
+  version: runnerPkg.version || "0.0.0",
+  private: true,
+  type: "module",
+  dependencies: runnerPkg.dependencies || {},
+};
+writeFileSync(
+  join(runtimeDir, "package.json"),
+  JSON.stringify(trimmedPkg, null, 2),
+);
+execFile("npm", ["install", "--omit=dev", "--no-audit", "--no-fund"], {
+  cwd: runtimeDir,
+});
 // Copy the JS the runner imports at runtime.
 mkdirSync(join(runtimeDir, "lib"), { recursive: true });
 cpSync(join(REPO, "runner", "run.js"), join(runtimeDir, "run.js"));

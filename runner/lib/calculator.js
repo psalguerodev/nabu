@@ -79,9 +79,11 @@ export async function createEstimate(services, options = {}) {
           createdGroups.add(svc.group);
         }
 
-        // Click the correct "Add service" button
+        // Click the correct "Add service" button. Sanitize the group
+        // name first so we match the header rendered by createGroup
+        // (which also sanitized).
         if (svc.group) {
-          await clickGroupAddService(page, svc.group);
+          await clickGroupAddService(page, sanitizeGroupName(svc.group));
         } else {
           // Root level: click the main Add service button
           await page.getByRole("button", { name: "Add service" }).first().click();
@@ -241,7 +243,22 @@ async function waitForSummary(page, index, total) {
   }
 }
 
+// calculator.aws's "Group name" input rejects `&`, `<`, `>`, `"`,
+// `/` and a few other special chars with an inline validation error,
+// which leaves the modal's Create button disabled and stalls the
+// run. Sanitize defensively so a caller asking for "Storage & Delivery"
+// gets "Storage and Delivery" without failing the whole estimate.
+function sanitizeGroupName(name) {
+  return String(name)
+    .replace(/&/g, "and")
+    .replace(/[<>"/\\]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 40);
+}
+
 async function createGroup(page, groupName) {
+  const safeName = sanitizeGroupName(groupName);
   const btn = page.getByRole("button", { name: "Create group" }).first();
 
   // Poll until enabled (up to 15 seconds)
@@ -256,11 +273,22 @@ async function createGroup(page, groupName) {
   const nameInput = page.locator('input[aria-label*="Group name"]');
   await nameInput.waitFor({ timeout: 5000 });
   await nameInput.clear();
-  await nameInput.fill(groupName);
+  await nameInput.fill(safeName);
 
-  // Click the modal's Create group button (last one on page)
+  // Wait briefly so validation completes before reading the Create
+  // button state — without it we sometimes clicked while still disabled.
+  await page.waitForTimeout(200);
+
+  // Click the modal's Create group button (last one on page). Poll
+  // until enabled so we don't hit the previous "element is not enabled"
+  // 30s timeout.
   const allBtns = await page.getByRole("button", { name: "Create group" }).all();
-  await allBtns[allBtns.length - 1].click();
+  const modalBtn = allBtns[allBtns.length - 1];
+  for (let w = 0; w < 20; w++) {
+    if (await modalBtn.isEnabled().catch(() => false)) break;
+    await page.waitForTimeout(250);
+  }
+  await modalBtn.click({ timeout: 5000 });
   await page.waitForTimeout(1000);
 }
 
